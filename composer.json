@@ -2,7 +2,7 @@
     "name": "ride/web-terminal",
     "description": "Web UI for a terminal of a Ride application",
     "license": "MIT",
-    "version": "0.1.3",
+    "version": "0.1.0",
     "authors": [
         {
             "name": "Joris Vandeweerd",
