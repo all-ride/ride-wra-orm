@@ -1,0 +1,67 @@
+{
+    "routes": [
+        {
+            "path": "/api/v1/%type%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "indexAction",
+            "methods": "GET",
+            "id": "api.orm.index"
+        },
+        {
+            "path": "/api/v1/%type%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "saveAction",
+            "methods": "POST",
+            "id": "api.orm.create"
+        },
+        {
+            "path": "/api/v1/%type%/%id%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "detailAction",
+            "methods": "GET",
+            "id": "api.orm.detail"
+        },
+        {
+            "path": "/api/v1/%type%/%id%/%relationship%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "relatedAction",
+            "methods": "GET",
+            "id": "api.orm.related"
+        },
+        {
+            "path": "/api/v1/%type%/%id%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "saveAction",
+            "methods": "PATCH",
+            "id": "api.orm.update"
+        },
+        {
+            "path": "/api/v1/%type%/%id%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "deleteAction",
+            "methods": "DELETE",
+            "id": "api.orm.delete"
+        },
+        {
+            "path": "/api/v1/%type%/%id%/relationship/%relationship%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "relationshipAction",
+            "methods": "GET",
+            "id": "api.orm.relationship"
+        },
+        {
+            "path": "/api/v1/%type%/%id%/relationship/%relationship%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "relationshipSaveAction",
+            "methods": "POST",
+            "id": "api.orm.relationship.save"
+        },
+        {
+            "path": "/api/v1/%type%/%id%/relationship/%relationship%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "relationshipDeleteAction",
+            "methods": "DELETE",
+            "id": "api.orm.relationship.delete"
+        }
+    ]
+}

@@ -1,0 +1,62 @@
+{
+    "dependencies": [
+        {
+            "class": "ride\\library\\system\\file\\File",
+            "id": "cache.orm.api",
+            "calls": [
+                {
+                    "method": "__construct",
+                    "arguments": [
+                        {
+                            "name": "path",
+                            "type": "parameter",
+                            "properties": {
+                                "key": "system.cache.orm.api"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "interfaces": "ride\\library\\cache\\pool\\CachePool",
+            "class": "ride\\library\\cache\\pool\\FileCachePool",
+            "id": "orm.api",
+            "calls": [
+                {
+                    "method": "__construct",
+                    "arguments": [
+                        {
+                            "name": "file",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\system\\file\\File",
+                                "id": "cache.orm.api"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "interfaces": "ride\\library\\http\\jsonapi\\JsonApi",
+            "class": "ride\\web\\rest\\jsonapi\\OrmJsonApi",
+            "id": "orm",
+            "calls": [
+                {
+                    "method": "__construct",
+                    "arguments": [
+                        {
+                            "name": "cache",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\cache\\pool\\CachePool",
+                                "id": "orm.api"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
