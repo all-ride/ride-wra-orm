@@ -1,8 +1,8 @@
 {
-    "name": "ride/web-terminal",
-    "description": "Web UI for a terminal of a Ride application",
+    "name": "ride/wra-orm",
+    "description": "JSON API implementation for the ORM of a Ride application",
     "license": "MIT",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "authors": [
         {
             "name": "Joris Vandeweerd",
@@ -21,8 +21,8 @@
     },
     "autoload": {
         "psr-0": {
-            "ride\\web\\base\\controller\\TerminalController": ["src/"],
-            "ride\\web\\base\\TerminalApplicationListener": ["src/"]
+            "ride\\web\\rest\\controller\\OrmModelController": ["src/"],
+            "ride\\web\\rest\\jsonapi\\": ["src/"]
         }
     }
 }
