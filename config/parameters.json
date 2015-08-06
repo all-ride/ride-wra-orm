@@ -1,0 +1,3 @@
+{
+    "system.cache.orm.api": "%application%/data/cache/%environment%/orm-jsonapi.cache"
+}
