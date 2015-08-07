@@ -22,13 +22,6 @@
             "id": "api.orm.detail"
         },
         {
-            "path": "/api/v1/%type%/%id%/%relationship%",
-            "controller": "ride\\web\\rest\\controller\\OrmModelController",
-            "action": "relatedAction",
-            "methods": "GET",
-            "id": "api.orm.related"
-        },
-        {
             "path": "/api/v1/%type%/%id%",
             "controller": "ride\\web\\rest\\controller\\OrmModelController",
             "action": "saveAction",
@@ -43,6 +36,13 @@
             "id": "api.orm.delete"
         },
         {
+            "path": "/api/v1/%type%/%id%/%relationship%",
+            "controller": "ride\\web\\rest\\controller\\OrmModelController",
+            "action": "relatedAction",
+            "methods": "GET",
+            "id": "api.orm.related"
+        },
+        {
             "path": "/api/v1/%type%/%id%/relationship/%relationship%",
             "controller": "ride\\web\\rest\\controller\\OrmModelController",
             "action": "relationshipAction",
@@ -53,15 +53,8 @@
             "path": "/api/v1/%type%/%id%/relationship/%relationship%",
             "controller": "ride\\web\\rest\\controller\\OrmModelController",
             "action": "relationshipSaveAction",
-            "methods": "POST",
+            "methods": ["POST", "PATCH", "DELETE"],
             "id": "api.orm.relationship.save"
-        },
-        {
-            "path": "/api/v1/%type%/%id%/relationship/%relationship%",
-            "controller": "ride\\web\\rest\\controller\\OrmModelController",
-            "action": "relationshipDeleteAction",
-            "methods": "DELETE",
-            "id": "api.orm.relationship.delete"
         }
     ]
 }
