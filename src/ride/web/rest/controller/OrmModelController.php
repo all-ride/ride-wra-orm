@@ -9,6 +9,8 @@ use ride\library\http\jsonapi\JsonApiQuery;
 use ride\library\http\Header;
 use ride\library\http\Response;
 use ride\library\log\Log;
+use ride\library\orm\definition\field\HasManyField;
+use ride\library\orm\definition\field\ModelField;
 use ride\library\orm\definition\field\PropertyField;
 use ride\library\orm\definition\field\RelationField;
 use ride\library\orm\model\Model;
@@ -204,6 +206,7 @@ class OrmModelController extends AbstractController {
             return;
         }
 
+        $entry = null;
         if ($id) {
             // retrieve the requested entry
             $entry = $this->getEntry($model, $type, $id);
@@ -215,17 +218,198 @@ class OrmModelController extends AbstractController {
         }
 
         // validate incoming body
-        try {
-            $json = $jsonParser->parseToPhp($this->request->getBody());
-        } catch (ConfigException $exception) {
-            list($title, $description) = explode(':', $exception->getMessage());
-
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.body', $title, ucfirst(trim($description)));
-
-            $this->document->addError($error);
-
+        $entry = $this->getEntryBody($jsonParser, $model, $entry, $type);
+        if ($this->document->getErrors()) {
+            // errors occured, stop processing
             return;
         }
+
+        // save the entry
+        $isNew = $entry->getId() ? false : true;
+
+        try {
+            $model->save($entry);
+
+            // update response document with the entry
+            $url = $this->getUrl('api.orm.detail', array('type' => $type, 'id' => $entry->getId()));
+
+            $this->document->setLink('self', $url);
+            $this->document->setResourceData($type, $entry);
+
+            if ($isNew) {
+                $this->document->setStatusCode(Response::STATUS_CODE_CREATED);
+                $this->response->setHeader(Header::HEADER_LOCATION, $url);
+            }
+        } catch (ValidationException $exception) {
+            $this->handleValidationException($exception);
+        }
+    }
+
+    /**
+     * Action to delete an entry
+     * @param string $type Name of the resource type
+     * @param string $id Id of the resource
+     * @return null
+     */
+    public function deleteAction($type, $id) {
+        // check the resource type
+        $model = $this->getModel($type);
+        if (!$model) {
+            return;
+        }
+
+        // fetch the entry
+        $entry = $this->getEntry($model, $type, $id);
+        if (!$entry) {
+            return;
+        }
+
+        // delete the entry
+        $model->delete($entry);
+    }
+
+    /**
+     * Action to get the relationship details
+     * @param string $type Type of the resource
+     * @param string $id Id of the resource
+     * @param string $relationship Name of the relationship
+     * @return null
+     */
+    public function relationshipAction($type, $id, $relationship) {
+        // check the resource type
+        $model = $this->getModel($type);
+        if (!$model) {
+            return;
+        }
+
+        // retrieve the entry
+        $entry = $this->getEntry($model, $type, $id);
+        if (!$entry) {
+            return;
+        }
+
+        $field = $this->getField($model, $relationship, $type);
+        if ($this->document->getErrors()) {
+            return;
+        }
+
+        $relationshipType = $this->api->getModelType($field->getRelationModelName());
+        $value = $model->getReflectionHelper()->getProperty($entry, $relationship);
+
+        // create relationship
+        $resource = $this->api->createRelationship();
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                $value[$key] = $this->api->createResource($relationshipType, $item->getId());
+            }
+
+            $resource->setResourceCollection($value);
+        } else {
+            if ($value) {
+                $value = $this->api->createResource($relationshipType, $value->getId());
+            }
+
+            $resource->setResource($value);
+        }
+
+        $this->document->setLink('self', $this->request->getUrl());
+        $this->document->setLink('related', $this->getUrl('api.orm.related', array('type' => $type, 'id' => $id, 'relationship' => $relationship)));
+        $this->document->setRelationshipData($resource);
+    }
+
+    /**
+     * Saves the incoming resource being a create or an update
+     * @param \ride\library\config\parser\JsonParser $jsonParser
+     * @param string $type Type of the resource
+     * @param string $id Id of the resource
+     * @return null
+     */
+    public function relationshipSaveAction(JsonParser $jsonParser, $type, $id, $relationship) {
+        // check the resource type
+        $model = $this->getModel($type);
+        if (!$model) {
+            return;
+        }
+
+        // retrieve the entry
+        $entry = $this->getEntry($model, $type, $id);
+        if (!$entry) {
+            return;
+        }
+
+        // check the relationship
+        $field = $this->getField($model, $relationship, $type);
+        if ($this->document->getErrors()) {
+            return;
+        }
+
+        // validate incoming body
+        $data = $this->getRelationshipBody($jsonParser, $model, $field, $relationship);
+        if ($this->document->getErrors()) {
+            // errors occured, stop processing
+            return;
+        }
+
+        if (!$this->request->isPatch() && $field instanceof HasManyField) {
+            if ($data === null) {
+                $data = array();
+            } elseif (!is_array($data)) {
+                $data = array($data);
+            }
+
+            if ($this->request->isPost()) {
+                $methodName = 'addTo' . ucfirst($relationship);
+            } elseif ($this->request->isDelete()) {
+                $methodName = 'removeFrom' . ucfirst($relationship);
+            }
+
+            foreach ($data as $relationshipEntry) {
+                $entry->$methodName($relationshipEntry);
+            }
+        } else {
+            // simply overwrite value
+            $model->getReflectionHelper()->setProperty($entry, $relationship, $data);
+        }
+
+        try {
+            $model->save($entry);
+        } catch (ValidationException $exception) {
+            $this->handleValidationException($exception);
+        }
+    }
+
+    /**
+     * Adds the errors of the validation exception to the document
+     * @param \ride\library\validation\exception\ValidationException $exception
+     * @return null
+     */
+    private function handleValidationException(ValidationException $exception) {
+        foreach ($exception->getAllErrors() as $fieldName => $fieldErrors) {
+            $field = $meta->getField($fieldName);
+            if ($field instanceof PropertyField) {
+                $source = '/data/attributes/' . $fieldName;
+            } else {
+                $source = '/data/relationships/' . $fieldName;
+            }
+
+            foreach ($fieldErrors as $error) {
+                $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, $error->getCode(), $error->getMessage(), (string) $error);
+                $error->setSourcePointer($source);
+
+                $this->document->addError($error);
+            }
+        }
+    }
+
+    /**
+     * Gets an entry out of the submitted body
+     * @param \ride\library\orm\model\Model $model
+     * @param \ride\library\orm\definition\field\ModelField $field
+     * @param string $type Name of the resource type
+     * @return mixed
+     */
+    private function getEntryBody(JsonParser $jsonParser, Model $model, $entry, $type) {
+        $json = $this->getJsonBody($jsonParser);
 
         // check the submitted type
         if (!isset($json['data']['type'])) {
@@ -325,124 +509,94 @@ class OrmModelController extends AbstractController {
             }
         }
 
-        if ($this->document->getErrors()) {
-            // errors occured, stop processing
-            return;
-        }
-
-        // save the entry
-        $isNew = $entry->getId() ? false : true;
-
-        try {
-            $model->save($entry);
-
-            // update response document with the entry
-            $url = $this->getUrl('api.orm.detail', array('type' => $type, 'id' => $entry->getId()));
-
-            $this->document->setLink('self', $url);
-            $this->document->setResourceData($type, $entry);
-
-            if ($isNew) {
-                $this->document->setStatusCode(Response::STATUS_CODE_CREATED);
-                $this->response->setHeader(Header::HEADER_LOCATION, $url);
-            }
-        } catch (ValidationException $exception) {
-            // errors occured, add to response document
-            foreach ($exception->getAllErrors() as $fieldName => $fieldErrors) {
-                $field = $meta->getField($fieldName);
-                if ($field instanceof PropertyField) {
-                    $source = '/data/attributes/' . $fieldName;
-                } else {
-                    $source = '/data/relationships/' . $fieldName;
-                }
-
-                foreach ($fieldErrors as $error) {
-                    $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, $error->getCode(), $error->getMessage(), (string) $error);
-                    $error->setSourcePointer($source);
-
-                    $this->document->addError($error);
-                }
-            }
-        }
+        return $entry;
     }
 
     /**
-     * Action to delete an entry
-     * @param string $type Name of the resource type
-     * @param string $id Id of the resource
-     * @return null
-     */
-    public function deleteAction($type, $id) {
-        // check the resource type
-        $model = $this->getModel($type);
-        if (!$model) {
-            return;
-        }
-
-        // fetch the entry
-        $entry = $this->getEntry($model, $type, $id);
-        if (!$entry) {
-            return;
-        }
-
-        // delete the entry
-        $model->delete($entry);
-    }
-
-    /**
-     * Action to get the relationship details
-     * @param string $type Type of the resource
-     * @param string $id Id of the resource
+     * Gets the body of a relationship and translate into entries
+     * @param \ride\library\orm\model\Model $model
+     * @param \ride\library\orm\definition\field\ModelField $field
      * @param string $relationship Name of the relationship
-     * @return null
+     * @return mixed|array
      */
-    public function relationshipAction($type, $id, $relationship) {
-        // check the resource type
-        $model = $this->getModel($type);
-        if (!$model) {
-            return;
+    private function getRelationshipBody(JsonParser $jsonParser, Model $model, ModelField $field, $relationship) {
+        $json = $this->getJsonBody($jsonParser);
+        $relationModelName = $field->getRelationModelName();
+
+        // check the submitted type
+        if (!array_key_exists('data', $json)) {
+            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data', 'No data submitted');
+            $error->setDetail('No data member found in the submitted body');
+            $error->setSourcePointer('/data');
+
+            $this->document->addError($error);
+        } elseif ($json['data'] === null) {
+            $data = null;
+        } elseif (isset($json['data']['type']) && isset($json['data']['id'])) {
+            $model = $this->getModel($json['data']['type'], '/data/type');
+
+            $data = $this->getEntry($model, $json['data']['type'], $json['data']['id']);
+        } elseif (is_array($json['data'])) {
+            if ($field instanceof HasManyField) {
+                $data = array();
+
+                foreach ($json['data'] as $index => $resource) {
+                    if (!isset($resource['type']) || !isset($resource['id'])) {
+                        $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data', 'Invalid data submitted');
+                        $error->setDetail('No type or id member found in the submitted data');
+                        $error->setSourcePointer('/data/' . $index);
+
+                        $this->document->addError($error);
+                    } else {
+                        $model = $this->getModel($resource['type'], '/data/' . $index . '/type');
+                        if ($model->getName() !== $relationModelName) {
+                            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data', 'Invalid data submitted');
+                            $error->setDetail('No type or id member found in the submitted data');
+                            $error->setSourcePointer('/data/' . $index);
+
+                            $this->document->addError($error);
+                        } else {
+                            $resourceEntry = $this->getEntry($model, $resource['type'], $resource['id'], '/data/' . $index);
+                            if ($resourceEntry) {
+                                $data[$index] = $resourceEntry;
+                            }
+                        }
+                    }
+                }
+            } else {
+                $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data.array', 'Unexpected array data received');
+                $error->setDetail('Data member in the submitted body cannot be an array for the ' . $relationship . ' relationship.');
+                $error->setSourcePointer('/data');
+
+                $this->document->addError($error);
+            }
+        } else {
+            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data', 'Invalid data submitted');
+            $error->setDetail('No valid data member found in the submitted body');
+            $error->setSourcePointer('/data');
+
+            $this->document->addError($error);
         }
 
-        // retrieve the entry
-        $entry = $this->getEntry($model, $type, $id);
-        if (!$entry) {
-            return;
-        }
+        return $data;
+    }
 
-        $field = $model->getMeta()->getField($relationship);
-        if (!$field instanceof RelationField) {
-            // invalid relationship
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not set relationship');
-            $error->setDetail('Relationship \'' . $relationship . '\' does not exist for type \'' . $type . '\'');
-            $error->setSourcePointer('/data/relationships/' . $relationship);
+    /**
+     * Gets the body from the request and parses the JSON into PHP
+     * @return array
+     */
+    private function getJsonBody(JsonParser $jsonParser) {
+        try {
+            return $jsonParser->parseToPhp($this->request->getBody());
+        } catch (ConfigException $exception) {
+            list($title, $description) = explode(':', $exception->getMessage());
+
+            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.body', $title, ucfirst(trim($description)));
 
             $this->document->addError($error);
 
-            return;
+            return false;
         }
-
-        $relationshipType = $this->api->getModelType($field->getRelationModelName());
-        $value = $model->getReflectionHelper()->getProperty($entry, $relationship);
-
-        // create relationship
-        $resource = $this->api->createRelationship();
-        if (is_array($value)) {
-            foreach ($value as $key => $item) {
-                $value[$key] = $this->api->createResource($relationshipType, $item->getId());
-            }
-
-            $resource->setResourceCollection($value);
-        } else {
-            if ($value) {
-                $value = $this->api->createResource($relationshipType, $value->getId());
-            }
-
-            $resource->setResource($value);
-        }
-
-        $this->document->setLink('self', $this->request->getUrl());
-        $this->document->setLink('related', $this->getUrl('api.orm.related', array('type' => $type, 'id' => $id, 'relationship' => $relationship)));
-        $this->document->setRelationshipData($resource);
     }
 
     /**
@@ -450,10 +604,11 @@ class OrmModelController extends AbstractController {
      * @param \ride\library\orm\model\Model $model Instance of the model
      * @param string $type Name of the resource type
      * @param string $id Id of the resource
+     * @param string $source Source pointer for this entry
      * @return mixed Instance of the entry if found, false otherwise and an
      * error is added to the document
      */
-    private function getEntry(Model $model, $type, $id) {
+    private function getEntry(Model $model, $type, $id, $source = null) {
         $entry = $model->getById($id);
         if ($entry) {
             return $entry;
@@ -461,6 +616,9 @@ class OrmModelController extends AbstractController {
 
         $error = $this->api->createError(Response::STATUS_CODE_NOT_FOUND, 'resource.found', 'Resource does not exist');
         $error->setDetail('Resource with \'' . $type . '\' and id \'' . $id . '\' does not exist');
+        if ($source) {
+            $error->setSourcePointer($source);
+        }
 
         $this->document->addError($error);
 
@@ -520,6 +678,27 @@ class OrmModelController extends AbstractController {
         $this->document->addError($error);
 
         return false;
+    }
+
+    /**
+     * Resolves the provided relationship field
+     * @param \ride\library\orm\model\Model $model
+     * @param string $relationship
+     * @param string $type
+     * @return \ride\library\orm\definition\field\Field
+     */
+    private function getField(Model $model, $relationship, $type) {
+        $field = $model->getMeta()->getField($relationship);
+        if (!$field instanceof RelationField) {
+            // invalid relationship
+            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not set relationship');
+            $error->setDetail('Relationship \'' . $relationship . '\' does not exist for type \'' . $type . '\'');
+            $error->setSourcePointer('/data/relationships/' . $relationship);
+
+            $this->document->addError($error);
+        }
+
+        return $field;
     }
 
     /**
