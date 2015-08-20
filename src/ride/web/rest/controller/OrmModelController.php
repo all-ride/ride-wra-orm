@@ -90,9 +90,17 @@ class OrmModelController extends AbstractController {
             $meta = $model->getMeta();
             $modelQuery = $model->createQuery();
 
-            $searchQuery = $documentQuery->getFilter('query');
-            if ($searchQuery) {
-                $model->applySearch($modelQuery, array('query' => $searchQuery));
+            $searchOptions = array();
+
+            $searchQuery = $documentQuery->getFilter('query', array());
+            $searchExact = $documentQuery->getFilter('exact', array());
+            $searchMatch = $documentQuery->getFilter('match', array());
+            if ($searchQuery || $searchExact || $searchMatch) {
+                $model->applySearch($modelQuery, array(
+                    'query' => $searchQuery,
+                    'filter' => $searchExact,
+                    'match' => $searchMatch,
+                ));
             }
 
             $modelQuery->setLimit($documentQuery->getLimit(50), $documentQuery->getOffset());
