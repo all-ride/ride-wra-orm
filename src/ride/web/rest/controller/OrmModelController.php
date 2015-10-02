@@ -13,8 +13,11 @@ use ride\library\orm\definition\field\HasManyField;
 use ride\library\orm\definition\field\ModelField;
 use ride\library\orm\definition\field\PropertyField;
 use ride\library\orm\definition\field\RelationField;
+use ride\library\orm\meta\ModelMeta;
 use ride\library\orm\model\Model;
 use ride\library\validation\exception\ValidationException;
+
+use ride\service\UploadService;
 
 use ride\web\mvc\controller\AbstractController;
 use ride\web\rest\jsonapi\OrmJsonApi;
@@ -202,54 +205,88 @@ class OrmModelController extends AbstractController {
 
     /**
      * Saves the incoming resource being a create or an update
+     * @param \ride\service\UploadService $uploadService
      * @param \ride\library\config\parser\JsonParser $jsonParser
      * @param string $type Type of the resource
      * @param string $id Id of the resource
      * @return null
      */
-    public function saveAction(JsonParser $jsonParser, $type, $id = null) {
+    public function saveAction(UploadService $uploadService, JsonParser $jsonParser, $type, $id = null) {
         // check the resource type
         $model = $this->getModel($type);
         if (!$model) {
             return;
         }
 
-        $entry = null;
-        if ($id) {
-            // retrieve the requested entry
-            $entry = $this->getEntry($model, $type, $id);
-        }
-
-        if (!$entry) {
-            // create a new entry
-            $entry = $model->createEntry();
-        }
+        $json = $this->getJsonBody($jsonParser);
 
         // validate incoming body
-        $entry = $this->getEntryBody($jsonParser, $model, $entry, $type);
+        if (isset($json['data'][0])) {
+            // bulk operation
+            $entries = array();
+
+            foreach ($json['data'] as $index => $entry) {
+                $entries[] = $this->getEntryFromStructure($uploadService, $model, $entry, $type, $id, $index);
+            }
+        } elseif (isset($json['data'])) {
+            // single entry
+            $entries = $this->getEntryFromStructure($uploadService, $model, $json['data'], $type, $id);
+        } else {
+            // invalid json
+            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input', 'No data attribute submitted');
+            $error->setDetail('No data attribute found in the submitted body');
+            $error->setSourcePointer('/data');
+
+            $this->document->addError($error);
+
+            return;
+        }
+
         if ($this->document->getErrors()) {
             // errors occured, stop processing
             return;
         }
 
-        // save the entry
-        $isNew = $entry->getId() ? false : true;
-
         try {
-            $model->save($entry);
+            if (is_array($entries)) {
+                $url = $this->getUrl('api.orm.index', array('type' => $type));
+                $filter = array();
 
-            // update response document with the entry
-            $url = $this->getUrl('api.orm.detail', array('type' => $type, 'id' => $entry->getId()));
+                foreach ($entries as $entry) {
+                    $model->save($entry);
 
-            $this->document->setLink('self', $url);
-            $this->document->setResourceData($type, $entry);
+                    $filter[] = 'filter[exact][id][]=' . $entry->getId();
+                }
 
-            if ($isNew) {
-                $this->document->setStatusCode(Response::STATUS_CODE_CREATED);
+                $url .= '?' . implode('&', $filter);
+
+                // update response document with the entries
+                $this->document->setLink('self', $url);
+                $this->document->setResourceCollection($type, $entries);
+
                 $this->response->setHeader(Header::HEADER_LOCATION, $url);
+                $this->document->setStatusCode(Response::STATUS_CODE_OK);
+            } else {
+                $entry = $entries;
+
+                // save the entry
+                $isNew = $entry->getId() ? false : true;
+
+                $model->save($entry);
+
+                // update response document with the entry
+                $url = $this->getUrl('api.orm.detail', array('type' => $type, 'id' => $entry->getId()));
+
+                $this->document->setLink('self', $url);
+                $this->document->setResourceData($type, $entry);
+
+                if ($isNew) {
+                    $this->response->setHeader(Header::HEADER_LOCATION, $url);
+                    $this->document->setStatusCode(Response::STATUS_CODE_CREATED);
+                }
             }
         } catch (ValidationException $exception) {
-            $this->handleValidationException($exception);
+            $this->handleValidationException($exception, $model->getMeta());
         }
     }
 
@@ -382,7 +419,7 @@ class OrmModelController extends AbstractController {
         try {
             $model->save($entry);
         } catch (ValidationException $exception) {
-            $this->handleValidationException($exception);
+            $this->handleValidationException($exception, $model->getMeta());
         }
     }
 
@@ -391,7 +428,7 @@ class OrmModelController extends AbstractController {
      * @param \ride\library\validation\exception\ValidationException $exception
      * @return null
      */
-    private function handleValidationException(ValidationException $exception) {
+    private function handleValidationException(ValidationException $exception, ModelMeta $meta) {
         foreach ($exception->getAllErrors() as $fieldName => $fieldErrors) {
             $field = $meta->getField($fieldName);
             if ($field instanceof PropertyField) {
@@ -416,41 +453,55 @@ class OrmModelController extends AbstractController {
      * @param string $type Name of the resource type
      * @return mixed
      */
-    private function getEntryBody(JsonParser $jsonParser, Model $model, $entry, $type) {
-        $json = $this->getJsonBody($jsonParser);
+    private function getEntryFromStructure(UploadService $uploadService, Model $model, $json, $type, $id = null, $index = null) {
+        if ($index) {
+            $index .= '/';
+        }
 
         // check the submitted type
-        if (!isset($json['data']['type'])) {
+        if (!isset($json['type'])) {
             $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.type', 'No resource type submitted');
             $error->setDetail('No resource type found in the submitted body');
-            $error->setSourcePointer('/data/type');
+            $error->setSourcePointer('/data/' . $index . 'type');
 
             $this->document->addError($error);
 
             return;
-        } elseif ($json['data']['type'] != $type) {
+        } elseif ($json['type'] != $type) {
             $error = $this->api->createError(Response::STATUS_CODE_CONFLICT, 'input.type.match', 'Submitted resource type does not match the URL resource type');
-            $error->setDetail('Submitted resource type \'' . $json['data']['type'] . '\' does not match the URL type \'' . $type . '\'');
-            $error->setSourcePointer('/data/type');
+            $error->setDetail('Submitted resource type \'' . $json['type'] . '\' does not match the URL type \'' . $type . '\'');
+            $error->setSourcePointer('/data/' . $index . 'type');
 
             $this->document->addError($error);
 
             return;
         }
 
+        $entry = null;
+        if ($id) {
+            // retrieve the requested entry
+            $entry = $this->getEntry($model, $type, $id);
+            if (!$entry) {
+                return;
+            }
+        } else {
+            // create a new entry
+            $entry = $model->createEntry();
+        }
+
         // check the id of the entry
-        if (!$entry->getId() && isset($json['data']['id'])) {
+        if (!$entry->getId() && isset($json['id'])) {
             $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.id', 'Could not create a resource with a client generated id');
-            $error->setDetail('Client generated id \'' . $json['data']['id'] . '\' cannot be used by the resource backend');
-            $error->setSourcePointer('/data/id');
+            $error->setDetail('Client generated id \'' . $json['id'] . '\' cannot be used by the resource backend');
+            $error->setSourcePointer('/data/' . $index . 'id');
 
             $this->document->addError($error);
 
             return;
-        } elseif ($entry->getId() && (!isset($json['data']['id']) || $entry->getId() != $json['data']['id'])) {
+        } elseif ($entry->getId() && (!isset($json['id']) || $entry->getId() != $json['id']) || ($id !== null && $entry->getId() != $id)) {
             $error = $this->api->createError(Response::STATUS_CODE_CONFLICT, 'input.type.match', 'Submitted resource id does not match the URL resource id');
-            $error->setDetail('Submitted resource id \'' . $json['data']['id'] . '\' does not match the URL id \'' . $id . '\'');
-            $error->setSourcePointer('/data/id');
+            $error->setDetail('Submitted resource id \'' . $json['id'] . '\' does not match the URL id \'' . $id . '\'');
+            $error->setSourcePointer('/data/' . $index . 'id');
 
             $this->document->addError($error);
 
@@ -463,44 +514,55 @@ class OrmModelController extends AbstractController {
         $fields = $meta->getFields();
 
         // handle submitted attributes
-        if (isset($json['data']['attributes'])) {
-            foreach ($json['data']['attributes'] as $attribute => $value) {
+        if (isset($json['attributes'])) {
+            foreach ($json['attributes'] as $attribute => $value) {
                 if (!isset($fields[$attribute]) || !$fields[$attribute] instanceof PropertyField) {
                     // invalid attribute
                     $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.attribute', 'Could not set attribute');
                     $error->setDetail('Attribute \'' . $attribute . '\' does not exist for type \'' . $type . '\'');
-                    $error->setSourcePointer('/data/attrîbutes/' . $attribute);
+                    $error->setSourcePointer('/data/' . $index . 'attrîbutes/' . $attribute);
 
                     $this->document->addError($error);
-                } else {
-                    // valid attribute
-                    $reflectionHelper->setProperty($entry, $attribute, $value);
+
+                    continue;
                 }
+
+                switch ($fields[$attribute]->getType()) {
+                    case 'file':
+                    case 'image':
+                        // @todo implement files through upload service or datauri
+                        $value = null;
+
+                        break;
+                }
+
+                // valid attribute
+                $reflectionHelper->setProperty($entry, $attribute, $value);
             }
         }
 
         // handle submitted relationships
-        if (isset($json['data']['relationships'])) {
-            foreach ($json['data']['relationships'] as $relationship => $value) {
+        if (isset($json['relationships'])) {
+            foreach ($json['relationships'] as $relationship => $value) {
                 if (!isset($fields[$relationship]) || !$fields[$relationship] instanceof RelationField) {
                     // invalid relationship
                     $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not set relationship');
                     $error->setDetail('Relationship \'' . $relationship . '\' does not exist for type \'' . $type . '\'');
-                    $error->setSourcePointer('/data/relationships/' . $relationship);
+                    $error->setSourcePointer('/data/' . $index . 'relationships/' . $relationship);
 
                     $this->document->addError($error);
                 } elseif (!isset($value['data'])) {
                     // invalid data
                     $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship.data', 'Invalid relationship data');
                     $error->setDetail('Submitted relationship \'' . $relationship . '\' does not contain a data member');
-                    $error->setSourcePointer('/data/relationships/' . $relationship);
+                    $error->setSourcePointer('/data/' . $index . 'relationships/' . $relationship);
 
                     $this->document->addError($error);
-                } elseif (isset($value['data'][0])) {
+                } elseif (isset($value['data'][0]) || !$value['data']) {
                     // collection submitted
                     $data = array();
                     foreach ($value['data'] as $reference) {
-                        $relationEntry = $this->getRelationship($reference, '/data/relationships/' . $relationship);
+                        $relationEntry = $this->getRelationship($reference, '/data/' . $index . 'relationships/' . $relationship);
                         if ($relationEntry) {
                             $data[$relationEntry->getId()] = $relationEntry;
                         }
@@ -509,7 +571,7 @@ class OrmModelController extends AbstractController {
                     $reflectionHelper->setProperty($entry, $relationship, $data);
                 } else {
                     // single value submitted
-                    $data = $this->getRelationship($value['data'], '/data/relationships/' . $relationship);
+                    $data = $this->getRelationship($value['data'], '/data/' . $index . 'relationships/' . $relationship);
                     if ($data) {
                         $reflectionHelper->setProperty($entry, $relationship, $data);
                     }
@@ -673,7 +735,7 @@ class OrmModelController extends AbstractController {
         }
 
         $entry = $model->getById($id);
-        if (!$entry) {
+        if ($entry) {
             return $entry;
         }
 
