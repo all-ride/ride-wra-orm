@@ -43,14 +43,14 @@
             "id": "api.orm.related"
         },
         {
-            "path": "/api/v1/%type%/%id%/relationship/%relationship%",
+            "path": "/api/v1/%type%/%id%/relationships/%relationship%",
             "controller": "ride\\web\\rest\\controller\\OrmModelController",
             "action": "relationshipAction",
             "methods": "GET",
             "id": "api.orm.relationship"
         },
         {
-            "path": "/api/v1/%type%/%id%/relationship/%relationship%",
+            "path": "/api/v1/%type%/%id%/relationships/%relationship%",
             "controller": "ride\\web\\rest\\controller\\OrmModelController",
             "action": "relationshipSaveAction",
             "methods": ["POST", "PATCH", "DELETE"],

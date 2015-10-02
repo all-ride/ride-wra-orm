@@ -39,12 +39,6 @@ class OrmJsonApi extends JsonApi {
     protected $cache;
 
     /**
-     * Current level of recursiveness
-     * @var integer
-     */
-    protected $level;
-
-    /**
      * Maximum level of recursiveness
      * @var integer
      */
@@ -67,9 +61,6 @@ class OrmJsonApi extends JsonApi {
         $this->orm = $orm;
         $this->web = $web;
         $this->cache = $cache;
-
-        $this->level = 0;
-        $this->maxLevel = 2;
 
         $this->modelTypes = array();
         $this->resourceAdapters = array();
@@ -158,37 +149,6 @@ class OrmJsonApi extends JsonApi {
         }
 
         return $this->resourceAdapters[$type];
-    }
-
-    /**
-     * Sets the maximum level of recursiveness
-     * @param integer $level
-     * @return null
-     */
-    public function setMaxLevel($level) {
-        $this->maxLevel = max(0, $level);
-    }
-
-    /**
-     * Increases the level of recursiveness
-     * @return boolean True if allowed to fetch, false if not
-     */
-    public function increaseLevel() {
-        if ($this->level >= $this->maxLevel) {
-            return false;
-        }
-
-        $this->level++;
-
-        return true;
-    }
-
-    /**
-     * Decreases the level of recursiveness after fetching a relation
-     * @return null
-     */
-    public function decreaseLevel() {
-        $this->level--;
     }
 
 }

@@ -38,10 +38,12 @@ class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
     /**
      * Gets a resource instance for the provided model data
      * @param mixed $data Data to adapt
-     * @param \ride\library\http\jsonapi\JsonApiDocument $document Document which is requested
+     * @param \ride\library\http\jsonapi\JsonApiDocument $document Document
+     * which is requested
+     * @param string $relationshipPath dot-separated list of relationship names
      * @return JsonApiResource|null
      */
-    public function getResource($data, JsonApiDocument $document) {
+    public function getResource($data, JsonApiDocument $document, $relationshipPath = null) {
         if ($data === null) {
             return null;
         } elseif (!$data instanceof Entry) {
@@ -51,7 +53,7 @@ class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
         $query = $document->getQuery();
         $api = $document->getApi();
 
-        $resource = $api->createResource($this->type, $data->getId());
+        $resource = $api->createResource($this->type, $data->getId(), $relationshipPath);
         $resource->setLink('self', $this->web->getUrl('api.orm.detail', array('type' => $this->type, 'id' => $data->getId())));
 
         $fields = $this->model->getMeta()->getFields();
@@ -65,9 +67,11 @@ class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
             }
 
             $fieldType = $api->getModelType($field->getRelationModelName());
-            if ($fieldType === false || !$query->isResourceRequested($fieldType) || !$api->increaseLevel()) {
+            if ($fieldType === false || !$query->isIncluded($relationshipPath)) {
                 continue;
             }
+
+            $fieldRelationshipPath = ($relationshipPath ? $relationshipPath . '.' : '') . $fieldName;
 
             $relationship = $api->createRelationship();
             $relationship->setLink('self', $this->web->getUrl('api.orm.relationship', array('type' => $this->type, 'id' => $data->getId(), 'relationship' => $fieldName)));
@@ -78,13 +82,13 @@ class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
 
             if ($field instanceof HasManyField) {
                 foreach ($value as $id => $entry) {
-                    $value[$id] = $adapter->getResource($entry, $document);
+                    $value[$id] = $adapter->getResource($entry, $document, $fieldRelationshipPath);
                 }
 
                 $relationship->setResourceCollection($value);
             } else {
                 if ($value) {
-                    $relationshipResource = $adapter->getResource($value, $document);
+                    $relationshipResource = $adapter->getResource($value, $document, $fieldRelationshipPath);
                 } else {
                     $relationshipResource = null;
                 }
@@ -93,7 +97,6 @@ class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
             }
 
             $resource->setRelationship($fieldName, $relationship);
-            $api->decreaseLevel();
         }
 
         return $resource;
