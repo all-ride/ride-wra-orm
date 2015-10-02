@@ -2,7 +2,7 @@
     "name": "ride/wra-orm",
     "description": "JSON API implementation for the ORM of a Ride application",
     "license": "MIT",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "authors": [
         {
             "name": "Joris Vandeweerd",

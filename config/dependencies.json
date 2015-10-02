@@ -13,7 +13,7 @@
                             "type": "dependency",
                             "properties": {
                                 "interface": "ride\\library\\cache\\pool\\CachePool",
-                                "id": "generic"
+                                "id": "file"
                             }
                         }
                     ]
