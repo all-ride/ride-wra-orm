@@ -2,7 +2,7 @@
     "name": "ride/wra-orm",
     "description": "JSON API implementation for the ORM of a Ride application",
     "license": "MIT",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "authors": [
         {
             "name": "Joris Vandeweerd",
@@ -22,7 +22,7 @@
     },
     "autoload": {
         "psr-0": {
-            "ride\\web\\rest\\controller\\OrmModelController": ["src/"],
+            "ride\\web\\rest\\controller\\": ["src/"],
             "ride\\web\\rest\\jsonapi\\": ["src/"]
         }
     }
