@@ -22,7 +22,7 @@
     },
     "autoload": {
         "psr-0": {
-            "ride\\web\\rest\\controller\\OrmModelController": ["src/"],
+            "ride\\web\\rest\\controller\\": ["src/"],
             "ride\\web\\rest\\jsonapi\\": ["src/"]
         }
     }
