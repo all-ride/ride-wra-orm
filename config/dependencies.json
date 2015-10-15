@@ -1,7 +1,17 @@
 {
     "dependencies": [
         {
-            "interfaces": "ride\\library\\http\\jsonapi\\JsonApi",
+            "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter"],
+            "class": "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter",
+            "id": "models"
+        },
+        {
+            "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\FieldJsonApiResourceAdapter"],
+            "class": "ride\\web\\rest\\jsonapi\\FieldJsonApiResourceAdapter",
+            "id": "model-fields"
+        },
+        {
+            "interfaces": ["ride\\library\\http\\jsonapi\\JsonApi", "ride\\web\\rest\\jsonapi\\OrmJsonApi"],
             "class": "ride\\web\\rest\\jsonapi\\OrmJsonApi",
             "id": "orm",
             "calls": [
@@ -14,6 +24,46 @@
                             "properties": {
                                 "interface": "ride\\library\\cache\\pool\\CachePool",
                                 "id": "file"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "method": "setResourceAdapter",
+                    "arguments": [
+                        {
+                            "name": "type",
+                            "type": "scalar",
+                            "properties": {
+                                "value": "models"
+                            }
+                        },
+                        {
+                            "name": "resourceAdapter",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\http\\jsonapi\\JsonApiResourceAdapter",
+                                "id": "models"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "method": "setResourceAdapter",
+                    "arguments": [
+                        {
+                            "name": "type",
+                            "type": "scalar",
+                            "properties": {
+                                "value": "model-fields"
+                            }
+                        },
+                        {
+                            "name": "resourceAdapter",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\http\\jsonapi\\JsonApiResourceAdapter",
+                                "id": "model-fields"
                             }
                         }
                     ]

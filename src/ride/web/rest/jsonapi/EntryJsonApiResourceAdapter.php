@@ -13,9 +13,9 @@ use ride\library\orm\model\Model;
 use ride\web\WebApplication;
 
 /**
- * JSON API Resource adapter for a ORM model
+ * JSON API Resource adapter for the entries of a ORM model
  */
-class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
+class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
 
     /**
      * Constructs a new model resource adapter
@@ -54,7 +54,7 @@ class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
         $api = $document->getApi();
 
         $resource = $api->createResource($this->type, $data->getId(), $relationshipPath);
-        $resource->setLink('self', $this->web->getUrl('api.orm.detail', array('type' => $this->type, 'id' => $data->getId())));
+        $resource->setLink('self', $this->web->getUrl('api.orm.entry.detail', array('type' => $this->type, 'id' => $data->getId())));
 
         $fields = $this->model->getMeta()->getFields();
         foreach ($fields as $fieldName => $field) {
@@ -74,8 +74,8 @@ class OrmJsonApiResourceAdapter implements JsonApiResourceAdapter {
             $fieldRelationshipPath = ($relationshipPath ? $relationshipPath . '.' : '') . $fieldName;
 
             $relationship = $api->createRelationship();
-            $relationship->setLink('self', $this->web->getUrl('api.orm.relationship', array('type' => $this->type, 'id' => $data->getId(), 'relationship' => $fieldName)));
-            $relationship->setLink('related', $this->web->getUrl('api.orm.related', array('type' => $this->type, 'id' => $data->getId(), 'relationship' => $fieldName)));
+            $relationship->setLink('self', $this->web->getUrl('api.orm.entry.relationship', array('type' => $this->type, 'id' => $data->getId(), 'relationship' => $fieldName)));
+            $relationship->setLink('related', $this->web->getUrl('api.orm.entry.related', array('type' => $this->type, 'id' => $data->getId(), 'relationship' => $fieldName)));
 
             $adapter = $api->getResourceAdapter($fieldType);
             $value = $this->reflectionHelper->getProperty($data, $fieldName);
