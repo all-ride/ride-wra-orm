@@ -145,7 +145,7 @@ class OrmJsonApi extends JsonApi {
 
             $model = $this->orm->getModel($modelName);
 
-            $this->setResourceAdapter($type, new OrmJsonApiResourceAdapter($this->web, $model, $type));
+            $this->setResourceAdapter($type, new EntryJsonApiResourceAdapter($this->web, $model, $type));
         }
 
         return $this->resourceAdapters[$type];
