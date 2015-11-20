@@ -526,7 +526,7 @@ class OrmEntryController extends AbstractController {
                     // invalid attribute
                     $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.attribute', 'Could not set attribute');
                     $error->setDetail('Attribute \'' . $attribute . '\' does not exist for type \'' . $type . '\'');
-                    $error->setSourcePointer('/data/' . $index . 'attrîbutes/' . $attribute);
+                    $error->setSourcePointer('/data/' . $index . 'attributes/' . $attribute);
 
                     $this->document->addError($error);
 
