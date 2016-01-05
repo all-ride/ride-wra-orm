@@ -10,6 +10,7 @@ use ride\library\orm\definition\field\HasManyField;
 use ride\library\orm\entry\Entry;
 use ride\library\orm\model\Model;
 
+use ride\web\rest\jsonapi\filter\FilterStrategy;
 use ride\web\WebApplication;
 
 /**
@@ -33,6 +34,41 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
         $this->model = $model;
         $this->reflectionHelper = $model->getReflectionHelper();
         $this->type = $type;
+        $this->filterStrategies = array();
+    }
+
+    /**
+     * Sets a filter strategy
+     * @param string $name Name of the filter strategy, also used as token of
+     * the filter query parameter
+     * @param \ride\web\rest\jsonapi\filter\FilterStrategy $filterStrategy
+     * Instance of the filter strategy
+     * @return null
+     */
+    public function setFilterStrategy($name, FilterStrategy $filterStrategy) {
+        $this->filterStrategies[$name] = $filterStrategy;
+    }
+
+    /**
+     * Sets the filter strategies
+     * @param array $filterStrategies Array with the name of the strategy as key
+     * and an instance as value
+     * @return null
+     * @see setFilterStrategy
+     */
+    public function setFilterStrategies(array $filterStrategies) {
+        foreach ($filterStrategies as $name => $filterStrategy) {
+            $this->setFilterStrategy($name, $filterStrategy);
+        }
+    }
+
+    /**
+     * Gets the filter strategies
+     * @return array Array with the name of the strategy as key and an instance
+     * as value
+     */
+    public function getFilterStrategies() {
+        return $this->filterStrategies;
     }
 
     /**

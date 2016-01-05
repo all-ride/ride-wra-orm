@@ -3,6 +3,7 @@
 namespace ride\web\rest\jsonapi;
 
 use ride\library\cache\pool\CachePool;
+use ride\library\dependency\DependencyInjector;
 use ride\library\http\jsonapi\exception\JsonApiException;
 use ride\library\http\jsonapi\JsonApi;
 use ride\library\orm\OrmManager;
@@ -57,9 +58,10 @@ class OrmJsonApi extends JsonApi {
      * @param \ride\library\cache\pool\CachePool $cache
      * @return null
      */
-    public function __construct(OrmManager $orm, WebApplication $web, CachePool $cache) {
+    public function __construct(OrmManager $orm, WebApplication $web, DependencyInjector $dependencyInjector, CachePool $cache) {
         $this->orm = $orm;
         $this->web = $web;
+        $this->dependencyInjector = $dependencyInjector;
         $this->cache = $cache;
 
         $this->modelTypes = array();
@@ -84,9 +86,7 @@ class OrmJsonApi extends JsonApi {
 
         $models = $this->orm->getModels();
         foreach ($models as $modelName => $model) {
-            $meta = $model->getMeta();
-
-            $type = $meta->getOption('json.api');
+            $type = $model->getMeta()->getOption('json.api');
             if (!$type) {
                 continue;
             }
@@ -145,7 +145,20 @@ class OrmJsonApi extends JsonApi {
 
             $model = $this->orm->getModel($modelName);
 
-            $this->setResourceAdapter($type, new EntryJsonApiResourceAdapter($this->web, $model, $type));
+            $filterStrategies = array();
+
+            $filterStrategyNames = $model->getMeta()->getOption('json.api.filters', 'query,exact,match,expression');
+            $filterStrategyNames = explode(',', $filterStrategyNames);
+            foreach ($filterStrategyNames as $filterStrategyName) {
+                $filterStrategyName = trim($filterStrategyName);
+
+                $filterStrategies[$filterStrategyName] = $this->dependencyInjector->get('ride\\web\\rest\\jsonapi\\filter\\FilterStrategy', $filterStrategyName);
+            }
+
+            $resourceAdapter = new EntryJsonApiResourceAdapter($this->web, $model, $type);
+            $resourceAdapter->setFilterStrategies($filterStrategies);
+
+            $this->setResourceAdapter($type, $resourceAdapter);
         }
 
         return $this->resourceAdapters[$type];

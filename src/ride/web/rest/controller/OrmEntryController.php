@@ -2,6 +2,9 @@
 
 namespace ride\web\rest\controller;
 
+use ride\library\system\file\FileSystem;
+use ride\library\system\file\browser\FileBrowser;
+use ride\library\system\file\File;
 use ride\library\config\exception\ConfigException;
 use ride\library\config\parser\JsonParser;
 use ride\library\http\jsonapi\exception\BadRequestJsonApiException;
@@ -13,9 +16,11 @@ use ride\library\orm\definition\field\HasManyField;
 use ride\library\orm\definition\field\ModelField;
 use ride\library\orm\definition\field\PropertyField;
 use ride\library\orm\definition\field\RelationField;
+use ride\library\orm\entry\EntryProxy;
 use ride\library\orm\meta\ModelMeta;
 use ride\library\orm\model\Model;
 use ride\library\validation\exception\ValidationException;
+use ride\library\StringHelper;
 
 use ride\service\UploadService;
 
@@ -93,18 +98,22 @@ class OrmEntryController extends AbstractController {
             $meta = $model->getMeta();
             $modelQuery = $model->createQuery();
 
-            $searchOptions = array();
-
-            $searchQuery = $documentQuery->getFilter('query', array());
-            $searchExact = $documentQuery->getFilter('exact', array());
-            $searchMatch = $documentQuery->getFilter('match', array());
-            if ($searchQuery || $searchExact || $searchMatch) {
-                $model->applySearch($modelQuery, array(
-                    'query' => $searchQuery,
-                    'filter' => $searchExact,
-                    'match' => $searchMatch,
-                ));
+            // applies the filters
+            $filterStrategies = $this->api->getResourceAdapter($type)->getFilterStrategies();
+            foreach ($filterStrategies as $filterStrategy) {
+                $filterStrategy->applyFilter($documentQuery, $modelQuery);
             }
+
+            // $searchQuery = $documentQuery->getFilter('query', array());
+            // $searchExact = $documentQuery->getFilter('exact', array());
+            // $searchMatch = $documentQuery->getFilter('match', array());
+            // if ($searchQuery || $searchExact || $searchMatch) {
+                // $model->applySearch($modelQuery, array(
+                    // 'query' => $searchQuery,
+                    // 'filter' => $searchExact,
+                    // 'match' => $searchMatch,
+                // ));
+            // }
 
             $modelQuery->setLimit($documentQuery->getLimit(50), $documentQuery->getOffset());
 
@@ -188,7 +197,7 @@ class OrmEntryController extends AbstractController {
         $field = $model->getMeta()->getField($relationship);
         if (!$field instanceof RelationField) {
             // invalid relationship
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not set relationship');
+            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not get relationship');
             $error->setDetail('Relationship \'' . $relationship . '\' does not exist for type \'' . $type . '\'');
             $error->setSourcePointer('/data/relationships/' . $relationship);
 
@@ -217,7 +226,7 @@ class OrmEntryController extends AbstractController {
      * @param string $id Id of the resource
      * @return null
      */
-    public function saveAction(UploadService $uploadService, JsonParser $jsonParser, $type, $id = null) {
+    public function saveAction(FileSystem $fileSystem, FileBrowser $fileBrowser, UploadService $uploadService, JsonParser $jsonParser, $type, $id = null) {
         // check the resource type
         $model = $this->getModel($type);
         if (!$model) {
@@ -232,11 +241,12 @@ class OrmEntryController extends AbstractController {
             $entries = array();
 
             foreach ($json['data'] as $index => $entry) {
-                $entries[] = $this->getEntryFromStructure($uploadService, $model, $entry, $type, $id, $index);
+                // @todo too many dependencies in method call, this should be a separate service.
+                $entries[] = $this->getEntryFromStructure($fileSystem, $fileBrowser, $uploadService, $model, $entry, $type, $id, $index);
             }
         } elseif (isset($json['data'])) {
             // single entry
-            $entries = $this->getEntryFromStructure($uploadService, $model, $json['data'], $type, $id);
+            $entries = $this->getEntryFromStructure($fileSystem, $fileBrowser, $uploadService, $model, $json['data'], $type, $id);
         } else {
             // invalid json
             $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input', 'No data attribute submitted');
@@ -459,7 +469,7 @@ class OrmEntryController extends AbstractController {
      * @param string $type Name of the resource type
      * @return mixed
      */
-    private function getEntryFromStructure(UploadService $uploadService, Model $model, $json, $type, $id = null, $index = null) {
+    private function getEntryFromStructure(FileSystem $fileSystem, FileBrowser $fileBrowser, UploadService $uploadService, Model $model, $json, $type, $id = null, $index = null) {
         if ($index) {
             $index .= '/';
         }
@@ -526,18 +536,58 @@ class OrmEntryController extends AbstractController {
                     // invalid attribute
                     $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.attribute', 'Could not set attribute');
                     $error->setDetail('Attribute \'' . $attribute . '\' does not exist for type \'' . $type . '\'');
-                    $error->setSourcePointer('/data/' . $index . 'attrîbutes/' . $attribute);
+                    $error->setSourcePointer('/data/' . $index . 'attributes/' . $attribute);
 
                     $this->document->addError($error);
 
                     continue;
                 }
 
-                switch ($fields[$attribute]->getType()) {
+                $field = $fields[$attribute];
+
+                switch ($field->getType()) {
                     case 'file':
                     case 'image':
-                        // @todo implement files through upload service or datauri
-                        $value = null;
+                        if ($reflectionHelper->getProperty($entry, $attribute) == $value) {
+                            continue 2;
+                        }
+
+                        // get temporary file
+                        // try file upload service
+                        $file = $uploadService->getTemporaryFile($value);
+
+                        if ($file === null) {
+                            // try dataURI
+                            $fileName = StringHelper::generate(16);
+                            $file = $uploadService->handleDataUri($fileName, $value);
+                        }
+
+                        if ($file instanceof File) {
+                            $uploadDir = $uploadService->getUploadDirectoryPermanent();
+
+                            // @todo move this to a common service or implement this in the field class
+                            $uploadDirString = $field->getOption('upload.path');
+                            if (is_string($uploadDirString)) {
+                                $uploadDirString = str_replace('%application%', $fileBrowser->getApplicationDirectory()->getAbsolutePath(), $uploadDirString);
+                                $uploadDirString = str_replace('%public%', $fileBrowser->getPublicDirectory()->getAbsolutePath(), $uploadDirString);
+
+                                $uploadDir = $fileSystem->getFile($uploadDirString);
+                            }
+                            // end of todo
+
+                            // move the file to somewhere permanent
+                            $file = $uploadService->moveTemporaryToPermanent($file, $uploadDir);
+                            $value = $uploadService->getRelativePath($file);
+                        } else {
+                            // invalid attribute
+                            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.attribute');
+                            $error->setDetail('Attribute \'' . $attribute . '\' does not contain a supported file value');
+                            $error->setSourcePointer('/data/' . $index . 'attributes/' . $attribute);
+
+                            $this->document->addError($error);
+
+                            $value = null;
+                        }
 
                         break;
                 }
