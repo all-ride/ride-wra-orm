@@ -16,6 +16,7 @@ use ride\library\orm\definition\field\HasManyField;
 use ride\library\orm\definition\field\ModelField;
 use ride\library\orm\definition\field\PropertyField;
 use ride\library\orm\definition\field\RelationField;
+use ride\library\orm\entry\EntryProxy;
 use ride\library\orm\meta\ModelMeta;
 use ride\library\orm\model\Model;
 use ride\library\validation\exception\ValidationException;
@@ -97,18 +98,22 @@ class OrmEntryController extends AbstractController {
             $meta = $model->getMeta();
             $modelQuery = $model->createQuery();
 
-            $searchOptions = array();
-
-            $searchQuery = $documentQuery->getFilter('query', array());
-            $searchExact = $documentQuery->getFilter('exact', array());
-            $searchMatch = $documentQuery->getFilter('match', array());
-            if ($searchQuery || $searchExact || $searchMatch) {
-                $model->applySearch($modelQuery, array(
-                    'query' => $searchQuery,
-                    'filter' => $searchExact,
-                    'match' => $searchMatch,
-                ));
+            // applies the filters
+            $filterStrategies = $this->api->getResourceAdapter($type)->getFilterStrategies();
+            foreach ($filterStrategies as $filterStrategy) {
+                $filterStrategy->applyFilter($documentQuery, $modelQuery);
             }
+
+            // $searchQuery = $documentQuery->getFilter('query', array());
+            // $searchExact = $documentQuery->getFilter('exact', array());
+            // $searchMatch = $documentQuery->getFilter('match', array());
+            // if ($searchQuery || $searchExact || $searchMatch) {
+                // $model->applySearch($modelQuery, array(
+                    // 'query' => $searchQuery,
+                    // 'filter' => $searchExact,
+                    // 'match' => $searchMatch,
+                // ));
+            // }
 
             $modelQuery->setLimit($documentQuery->getLimit(50), $documentQuery->getOffset());
 
@@ -192,7 +197,7 @@ class OrmEntryController extends AbstractController {
         $field = $model->getMeta()->getField($relationship);
         if (!$field instanceof RelationField) {
             // invalid relationship
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not set relationship');
+            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not get relationship');
             $error->setDetail('Relationship \'' . $relationship . '\' does not exist for type \'' . $type . '\'');
             $error->setSourcePointer('/data/relationships/' . $relationship);
 
@@ -543,6 +548,10 @@ class OrmEntryController extends AbstractController {
                 switch ($field->getType()) {
                     case 'file':
                     case 'image':
+                        if ($reflectionHelper->getProperty($entry, $attribute) == $value) {
+                            continue 2;
+                        }
+
                         // get temporary file
                         // try file upload service
                         $file = $uploadService->getTemporaryFile($value);

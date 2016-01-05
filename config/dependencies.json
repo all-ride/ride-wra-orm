@@ -1,6 +1,26 @@
 {
     "dependencies": [
         {
+            "interfaces": "ride\\web\\rest\\jsonapi\\filter\\FilterStrategy",
+            "class": "ride\\web\\rest\\jsonapi\\filter\\ExactFilterStrategy",
+            "id": "exact"
+        },
+        {
+            "interfaces": "ride\\web\\rest\\jsonapi\\filter\\FilterStrategy",
+            "class": "ride\\web\\rest\\jsonapi\\filter\\ExpressionFilterStrategy",
+            "id": "expression"
+        },
+        {
+            "interfaces": "ride\\web\\rest\\jsonapi\\filter\\FilterStrategy",
+            "class": "ride\\web\\rest\\jsonapi\\filter\\MatchFilterStrategy",
+            "id": "match"
+        },
+        {
+            "interfaces": "ride\\web\\rest\\jsonapi\\filter\\FilterStrategy",
+            "class": "ride\\web\\rest\\jsonapi\\filter\\QueryFilterStrategy",
+            "id": "query"
+        },
+        {
             "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter"],
             "class": "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter",
             "id": "models"
