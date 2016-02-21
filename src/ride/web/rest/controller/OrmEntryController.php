@@ -2,81 +2,61 @@
 
 namespace ride\web\rest\controller;
 
-use ride\library\system\file\FileSystem;
-use ride\library\system\file\browser\FileBrowser;
-use ride\library\system\file\File;
-use ride\library\config\exception\ConfigException;
-use ride\library\config\parser\JsonParser;
 use ride\library\http\jsonapi\exception\BadRequestJsonApiException;
-use ride\library\http\jsonapi\JsonApiQuery;
 use ride\library\http\Header;
 use ride\library\http\Response;
-use ride\library\log\Log;
 use ride\library\orm\definition\field\HasManyField;
 use ride\library\orm\definition\field\ModelField;
 use ride\library\orm\definition\field\PropertyField;
 use ride\library\orm\definition\field\RelationField;
-use ride\library\orm\entry\EntryProxy;
 use ride\library\orm\meta\ModelMeta;
 use ride\library\orm\model\Model;
 use ride\library\validation\exception\ValidationException;
-use ride\library\StringHelper;
 
-use ride\service\UploadService;
-
-use ride\web\mvc\controller\AbstractController;
-use ride\web\rest\jsonapi\OrmJsonApi;
+use ride\web\rest\controller\AbstractJsonApiController;
 
 /**
  * Controller to implement a JSON API out of a ORM model
  */
-class OrmEntryController extends AbstractController {
+class OrmEntryController extends AbstractJsonApiController {
 
     /**
-     * Constructs a new JSON API controller
-     * @param \ride\web\rest\jsonapi\OrmJsonApi $api
-     * @param \ride\library\log\Log $log
+     * Field processors
+     * @var array
+     */
+    private $fieldProcessors;
+
+    /**
+     * Hook to perform extra initializing
      * @return null
      */
-    public function __construct(OrmJsonApi $api, Log $log) {
-        $this->api = $api;
-        $this->log = $log;
+    protected function initialize() {
+        $this->addSupportedExtension(self::EXTENSION_BULK);
+
+        $this->fieldProcessors = array();
     }
 
     /**
-     * Checks the content type before every action and creates a document
-     * @return boolean True when the action is allowed, false otherwise
+     * Sets the field processors to this controller
+     * @param array $fieldProcessors Array with FieldProcessor instances
+     * @return null
+     * @see \ride\web\rest\jsonapi\processor\FieldProcessor
      */
-    public function preAction() {
-        // Servers MUST respond with a 415 Unsupported Media Type status code if
-        // a request specifies the header Content-Type: application/vnd.api+json
-        // with any media type parameters.
-        $contentType = $this->request->getHeader(Header::HEADER_CONTENT_TYPE);
-        if (strpos($contentType, OrmJsonApi::CONTENT_TYPE) === 0 && $contentType != OrmJsonApi::CONTENT_TYPE) {
-            $this->response->setStatusCode(Response::STATUS_CODE_UNSUPPORTED_MEDIA_TYPE);
-
-            return false;
-        }
-
-        // creates a document for the incoming request
-        $query = $this->api->createQuery($this->request->getQueryParameters());
-        $this->document = $this->api->createDocument($query);
-
-        return true;
+    public function setFieldProcessors(array $fieldProcessors) {
+        $this->fieldProcessors = $fieldProcessors;
     }
 
     /**
-     * Sets the response after every action
+     * Sets the response after every action based on the document
      * @return null
      */
     public function postAction() {
-        $this->response->setStatusCode($this->document->getStatusCode());
-
-        if ($this->document->hasContent()) {
-            $this->setJsonView($this->document);
-
-            $this->response->setHeader(Header::HEADER_CONTENT_TYPE, OrmJsonApi::CONTENT_TYPE);
+        parent::postAction();
+        if (!$this->document->hasContent()) {
+            return;
         }
+
+        $this->response->setHeader(Header::HEADER_CONTENT_LANGUAGE, strtolower(str_replace('_', '-', $this->api->getOrmManager()->getLocale())));
     }
 
     /**
@@ -104,26 +84,11 @@ class OrmEntryController extends AbstractController {
                 $filterStrategy->applyFilter($documentQuery, $modelQuery);
             }
 
-            // $searchQuery = $documentQuery->getFilter('query', array());
-            // $searchExact = $documentQuery->getFilter('exact', array());
-            // $searchMatch = $documentQuery->getFilter('match', array());
-            // if ($searchQuery || $searchExact || $searchMatch) {
-                // $model->applySearch($modelQuery, array(
-                    // 'query' => $searchQuery,
-                    // 'filter' => $searchExact,
-                    // 'match' => $searchMatch,
-                // ));
-            // }
-
             $modelQuery->setLimit($documentQuery->getLimit(50), $documentQuery->getOffset());
 
             foreach ($documentQuery->getSort() as $orderField => $orderDirection) {
                 if (!$meta->hasField($orderField)) {
-                    $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'index.order', 'Order field does not exist');
-                    $error->setDetail('Order field \'' . $orderField . '\' does not exist in resource type \'' . $type . '\'');
-                    $error->setSourceParameter(JsonApiQuery::PARAMETER_SORT);
-
-                    $this->document->addError($error);
+                    $this->addSortFieldNotFoundError($type, $orderField);
                 } else {
                     $modelQuery->addOrderBy('{' . $orderField . '} ' . $orderDirection);
                 }
@@ -142,7 +107,7 @@ class OrmEntryController extends AbstractController {
                 }
             }
         } catch (BadRequestJsonApiException $exception) {
-            $this->log->logException($exception);
+            $this->getLog()->logException($exception);
 
             $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'index.input', $exception->getMessage());
             $error->setSourceParameter($exception->getParameter());
@@ -196,12 +161,7 @@ class OrmEntryController extends AbstractController {
 
         $field = $model->getMeta()->getField($relationship);
         if (!$field instanceof RelationField) {
-            // invalid relationship
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not get relationship');
-            $error->setDetail('Relationship \'' . $relationship . '\' does not exist for type \'' . $type . '\'');
-            $error->setSourcePointer('/data/relationships/' . $relationship);
-
-            $this->document->addError($error);
+            $this->addRelationshipNotFoundError($type, $relationship);
 
             return;
         }
@@ -220,40 +180,35 @@ class OrmEntryController extends AbstractController {
 
     /**
      * Saves the incoming resource being a create or an update
-     * @param \ride\service\UploadService $uploadService
-     * @param \ride\library\config\parser\JsonParser $jsonParser
      * @param string $type Type of the resource
      * @param string $id Id of the resource
      * @return null
      */
-    public function saveAction(FileSystem $fileSystem, FileBrowser $fileBrowser, UploadService $uploadService, JsonParser $jsonParser, $type, $id = null) {
+    public function saveAction($type, $id = null) {
         // check the resource type
         $model = $this->getModel($type);
         if (!$model) {
             return;
         }
 
-        $json = $this->getJsonBody($jsonParser);
+        $json = $this->getBody();
 
         // validate incoming body
         if (isset($json['data'][0])) {
+            $this->useExtension(self::EXTENSION_BULK);
+
             // bulk operation
             $entries = array();
 
             foreach ($json['data'] as $index => $entry) {
                 // @todo too many dependencies in method call, this should be a separate service.
-                $entries[] = $this->getEntryFromStructure($fileSystem, $fileBrowser, $uploadService, $model, $entry, $type, $id, $index);
+                $entries[] = $this->getEntryFromStructure($model, $entry, $type, $id, $index);
             }
         } elseif (isset($json['data'])) {
             // single entry
-            $entries = $this->getEntryFromStructure($fileSystem, $fileBrowser, $uploadService, $model, $json['data'], $type, $id);
+            $entries = $this->getEntryFromStructure($model, $json['data'], $type, $id);
         } else {
-            // invalid json
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input', 'No data attribute submitted');
-            $error->setDetail('No data attribute found in the submitted body');
-            $error->setSourcePointer('/data');
-
-            $this->document->addError($error);
+            $this->addDataNotFoundError();
 
             return;
         }
@@ -380,12 +335,12 @@ class OrmEntryController extends AbstractController {
 
     /**
      * Saves the incoming resource being a create or an update
-     * @param \ride\library\config\parser\JsonParser $jsonParser
      * @param string $type Type of the resource
      * @param string $id Id of the resource
+     * @param string $relationship Name of the relationship
      * @return null
      */
-    public function relationshipSaveAction(JsonParser $jsonParser, $type, $id, $relationship) {
+    public function relationshipSaveAction($type, $id, $relationship) {
         // check the resource type
         $model = $this->getModel($type);
         if (!$model) {
@@ -405,7 +360,7 @@ class OrmEntryController extends AbstractController {
         }
 
         // validate incoming body
-        $data = $this->getRelationshipBody($jsonParser, $model, $field, $relationship);
+        $data = $this->getRelationshipBody($model, $field, $relationship);
         if ($this->document->getErrors()) {
             // errors occured, stop processing
             return;
@@ -469,26 +424,18 @@ class OrmEntryController extends AbstractController {
      * @param string $type Name of the resource type
      * @return mixed
      */
-    private function getEntryFromStructure(FileSystem $fileSystem, FileBrowser $fileBrowser, UploadService $uploadService, Model $model, $json, $type, $id = null, $index = null) {
+    private function getEntryFromStructure(Model $model, $json, $type, $id = null, $index = null) {
         if ($index) {
             $index .= '/';
         }
 
         // check the submitted type
         if (!isset($json['type'])) {
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.type', 'No resource type submitted');
-            $error->setDetail('No resource type found in the submitted body');
-            $error->setSourcePointer('/data/' . $index . 'type');
-
-            $this->document->addError($error);
+            $this->addTypeNotFoundError($index);
 
             return;
         } elseif ($json['type'] != $type) {
-            $error = $this->api->createError(Response::STATUS_CODE_CONFLICT, 'input.type.match', 'Submitted resource type does not match the URL resource type');
-            $error->setDetail('Submitted resource type \'' . $json['type'] . '\' does not match the URL type \'' . $type . '\'');
-            $error->setSourcePointer('/data/' . $index . 'type');
-
-            $this->document->addError($error);
+            $this->addTypeMatchError($type, $json['type'], $index);
 
             return;
         }
@@ -507,19 +454,11 @@ class OrmEntryController extends AbstractController {
 
         // check the id of the entry
         if (!$entry->getId() && isset($json['id'])) {
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.id', 'Could not create a resource with a client generated id');
-            $error->setDetail('Client generated id \'' . $json['id'] . '\' cannot be used by the resource backend');
-            $error->setSourcePointer('/data/' . $index . 'id');
-
-            $this->document->addError($error);
+            $this->addIdInputError($json['id'], $index);
 
             return;
         } elseif ($entry->getId() && (!isset($json['id']) || $entry->getId() != $json['id']) || ($id !== null && $entry->getId() != $id)) {
-            $error = $this->api->createError(Response::STATUS_CODE_CONFLICT, 'input.type.match', 'Submitted resource id does not match the URL resource id');
-            $error->setDetail('Submitted resource id \'' . $json['id'] . '\' does not match the URL id \'' . $id . '\'');
-            $error->setSourcePointer('/data/' . $index . 'id');
-
-            $this->document->addError($error);
+            $this->addIdMatchError($id, $json['id'], $index);
 
             return;
         }
@@ -534,62 +473,24 @@ class OrmEntryController extends AbstractController {
             foreach ($json['attributes'] as $attribute => $value) {
                 if (!isset($fields[$attribute]) || !$fields[$attribute] instanceof PropertyField) {
                     // invalid attribute
-                    $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.attribute', 'Could not set attribute');
-                    $error->setDetail('Attribute \'' . $attribute . '\' does not exist for type \'' . $type . '\'');
-                    $error->setSourcePointer('/data/' . $index . 'attributes/' . $attribute);
-
-                    $this->document->addError($error);
+                    $this->addAttributeInputError($type, $attribute, $index);
 
                     continue;
                 }
 
                 $field = $fields[$attribute];
 
-                switch ($field->getType()) {
-                    case 'file':
-                    case 'image':
-                        if ($reflectionHelper->getProperty($entry, $attribute) == $value) {
-                            continue 2;
-                        }
+                foreach ($this->fieldProcessors as $fieldProcessor) {
+                    try {
+                        $value = $fieldProcessor->processInputValue($model, $field, $entry, $value);
+                    } catch (Exception $exception) {
+                        // invalid attribute
+                        $this->addAttributeError($attribute, 'input.attribute.processor', 'Attribute \'' . $attribute . '\' generated an error', $exception->getMessage(), $index);
 
-                        // get temporary file
-                        // try file upload service
-                        $file = $uploadService->getTemporaryFile($value);
+                        $this->getLog()->logException($exception);
 
-                        if ($file === null) {
-                            // try dataURI
-                            $fileName = StringHelper::generate(16);
-                            $file = $uploadService->handleDataUri($fileName, $value);
-                        }
-
-                        if ($file instanceof File) {
-                            $uploadDir = $uploadService->getUploadDirectoryPermanent();
-
-                            // @todo move this to a common service or implement this in the field class
-                            $uploadDirString = $field->getOption('upload.path');
-                            if (is_string($uploadDirString)) {
-                                $uploadDirString = str_replace('%application%', $fileBrowser->getApplicationDirectory()->getAbsolutePath(), $uploadDirString);
-                                $uploadDirString = str_replace('%public%', $fileBrowser->getPublicDirectory()->getAbsolutePath(), $uploadDirString);
-
-                                $uploadDir = $fileSystem->getFile($uploadDirString);
-                            }
-                            // end of todo
-
-                            // move the file to somewhere permanent
-                            $file = $uploadService->moveTemporaryToPermanent($file, $uploadDir);
-                            $value = $uploadService->getRelativePath($file);
-                        } else {
-                            // invalid attribute
-                            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.attribute');
-                            $error->setDetail('Attribute \'' . $attribute . '\' does not contain a supported file value');
-                            $error->setSourcePointer('/data/' . $index . 'attributes/' . $attribute);
-
-                            $this->document->addError($error);
-
-                            $value = null;
-                        }
-
-                        break;
+                        $value = null;
+                    }
                 }
 
                 // valid attribute
@@ -602,18 +503,10 @@ class OrmEntryController extends AbstractController {
             foreach ($json['relationships'] as $relationship => $value) {
                 if (!isset($fields[$relationship]) || !$fields[$relationship] instanceof RelationField) {
                     // invalid relationship
-                    $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship', 'Could not set relationship');
-                    $error->setDetail('Relationship \'' . $relationship . '\' does not exist for type \'' . $type . '\'');
-                    $error->setSourcePointer('/data/' . $index . 'relationships/' . $relationship);
-
-                    $this->document->addError($error);
+                    $this->addRelationshipNotFoundError($type, $relationship, $index);
                 } elseif (!isset($value['data'])) {
                     // invalid data
-                    $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.relationship.data', 'Invalid relationship data');
-                    $error->setDetail('Submitted relationship \'' . $relationship . '\' does not contain a data member');
-                    $error->setSourcePointer('/data/' . $index . 'relationships/' . $relationship);
-
-                    $this->document->addError($error);
+                    $this->addRelationshipDataError($relationship, $index);
                 } elseif (isset($value['data'][0]) || !$value['data']) {
                     // collection submitted
                     $data = array();
@@ -645,17 +538,13 @@ class OrmEntryController extends AbstractController {
      * @param string $relationship Name of the relationship
      * @return mixed|array
      */
-    private function getRelationshipBody(JsonParser $jsonParser, Model $model, ModelField $field, $relationship) {
-        $json = $this->getJsonBody($jsonParser);
+    private function getRelationshipBody(Model $model, ModelField $field, $relationship) {
+        $json = $this->getBody();
         $relationModelName = $field->getRelationModelName();
 
         // check the submitted type
         if (!array_key_exists('data', $json)) {
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data', 'No data submitted');
-            $error->setDetail('No data member found in the submitted body');
-            $error->setSourcePointer('/data');
-
-            $this->document->addError($error);
+            $this->addDataNotFoundError();
         } elseif ($json['data'] === null) {
             $data = null;
         } elseif (isset($json['data']['type']) && isset($json['data']['id'])) {
@@ -690,39 +579,13 @@ class OrmEntryController extends AbstractController {
                     }
                 }
             } else {
-                $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data.array', 'Unexpected array data received');
-                $error->setDetail('Data member in the submitted body cannot be an array for the ' . $relationship . ' relationship.');
-                $error->setSourcePointer('/data');
-
-                $this->document->addError($error);
+                $this->addDataValidationError('can not be an array');
             }
         } else {
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.data', 'Invalid data submitted');
-            $error->setDetail('No valid data member found in the submitted body');
-            $error->setSourcePointer('/data');
-
-            $this->document->addError($error);
+            $this->addDataValidationError('is invalid');
         }
 
         return $data;
-    }
-
-    /**
-     * Gets the body from the request and parses the JSON into PHP
-     * @return array
-     */
-    private function getJsonBody(JsonParser $jsonParser) {
-        try {
-            return $jsonParser->parseToPhp($this->request->getBody());
-        } catch (ConfigException $exception) {
-            list($title, $description) = explode(':', $exception->getMessage());
-
-            $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'input.body', $title, ucfirst(trim($description)));
-
-            $this->document->addError($error);
-
-            return false;
-        }
     }
 
     /**
@@ -740,13 +603,7 @@ class OrmEntryController extends AbstractController {
             return $entry;
         }
 
-        $error = $this->api->createError(Response::STATUS_CODE_NOT_FOUND, 'resource.found', 'Resource does not exist');
-        $error->setDetail('Resource with type \'' . $type . '\' and id \'' . $id . '\' does not exist');
-        if ($source) {
-            $error->setSourcePointer($source);
-        }
-
-        $this->document->addError($error);
+        $this->addResourceNotFoundError($type, $id, $source);
 
         return false;
     }

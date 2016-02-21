@@ -17,8 +17,8 @@
         "ride/lib-log": ">=0.3.0",
         "ride/lib-orm": ">=0.10.3",
         "ride/lib-validation": ">=0.7.0",
-        "ride/web": ">=0.2.4",
-        "ride/wra-upload": ">=0.1.0"
+        "ride/web": ">=0.10.0",
+        "ride/wra": ">=0.1.0"
     },
     "autoload": {
         "psr-0": {

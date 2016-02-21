@@ -5,6 +5,7 @@ namespace ride\web\rest\jsonapi;
 use ride\library\http\jsonapi\exception\JsonApiException;
 use ride\library\http\jsonapi\JsonApiDocument;
 use ride\library\http\jsonapi\JsonApiResourceAdapter;
+use ride\library\http\DataUri;
 use ride\library\orm\definition\field\PropertyField;
 use ride\library\orm\definition\field\HasManyField;
 use ride\library\orm\entry\Entry;
@@ -17,6 +18,16 @@ use ride\web\WebApplication;
  * JSON API Resource adapter for the entries of a ORM model
  */
 class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
+
+    protected $web;
+
+    protected $model;
+
+    protected $reflectionHelper;
+
+    protected $type;
+
+    protected $filterStrategies;
 
     /**
      * Constructs a new model resource adapter
@@ -97,7 +108,17 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
             if ($fieldName == 'id' || $fieldName == 'type' || !$query->isFieldRequested($this->type, $fieldName)) {
                 continue;
             } elseif ($field instanceof PropertyField) {
-                $resource->setAttribute($fieldName, $this->reflectionHelper->getProperty($data, $fieldName));
+                $value = $this->reflectionHelper->getProperty($data, $fieldName);
+                if (($field->getType() == 'file' || $field->getType() == 'image') && $value) {
+                    $dataUri = $this->web->getHttpFactory()->createDataUriFromFile($value);
+                    if ($dataUri) {
+                        $value = $dataUri->encode();
+                    } else {
+                        $value = null;
+                    }
+                }
+
+                $resource->setAttribute($fieldName, $value);
 
                 continue;
             }
