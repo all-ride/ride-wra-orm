@@ -21,6 +21,89 @@
             "id": "query"
         },
         {
+            "interfaces": "ride\\web\\rest\\jsonapi\\processor\\FieldProcessor",
+            "class": "ride\\web\\rest\\jsonapi\\processor\\FileFieldProcessor",
+            "id": "file",
+            "calls": [
+                {
+                    "method": "__construct",
+                    "arguments": [
+                        {
+                            "name": "uploadDirectory",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\system\\file\\File",
+                                "id": "upload"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "interfaces": "ride\\web\\rest\\jsonapi\\processor\\FieldProcessor",
+            "class": "ride\\web\\rest\\jsonapi\\processor\\AssetValueFieldProcessor",
+            "id": "asset.value",
+            "calls": [
+                {
+                    "method": "__construct",
+                    "arguments": [
+                        {
+                            "name": "uploadDirectory",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\system\\file\\File",
+                                "id": "assets"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "class": "ride\\web\\rest\\controller\\OrmEntryController",
+            "calls": [
+                {
+                    "method": "__construct",
+                    "arguments": [
+                        {
+                            "name": "jsonApi",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\http\\jsonapi\\JsonApi",
+                                "id": "orm"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "method": "setFieldProcessors",
+                    "arguments": [
+                        {
+                            "name": "fieldProcessors",
+                            "type": "dependencies",
+                            "properties": {
+                                "interface": "ride\\web\\rest\\jsonapi\\processor\\FieldProcessor"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\EntryJsonApiResourceAdapter"],
+            "class": "ride\\web\\rest\\jsonapi\\EntryJsonApiResourceAdapter",
+            "id": "entry"
+        },
+        {
+            "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\EntryJsonApiResourceAdapter"],
+            "class": "ride\\web\\rest\\jsonapi\\AssetJsonApiResourceAdapter",
+            "id": "assets",
+            "calls": [
+                "setAssetService"
+            ]
+        },
+        {
             "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter"],
             "class": "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter",
             "id": "models"

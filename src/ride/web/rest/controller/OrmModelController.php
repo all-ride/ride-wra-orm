@@ -7,11 +7,9 @@ use ride\library\http\jsonapi\JsonApiQuery;
 use ride\library\http\jsonapi\JsonApi;
 use ride\library\http\Header;
 use ride\library\http\Response;
-use ride\library\log\Log;
 use ride\library\orm\exception\OrmException;
 use ride\library\orm\model\Model;
 use ride\library\orm\OrmManager;
-
 
 use ride\web\mvc\controller\AbstractController;
 use ride\web\rest\jsonapi\OrmJsonApi;
@@ -23,14 +21,13 @@ class OrmModelController extends AbstractController {
 
     /**
      * Constructs a new JSON API controller
+     * @param \ride\library\orm\OrmManager $orm
      * @param \ride\library\http\jsonapi\JsonApi $api
-     * @param \ride\library\log\Log $log
      * @return null
      */
-    public function __construct(OrmManager $orm, JsonApi $api, Log $log) {
+    public function __construct(OrmManager $orm, JsonApi $api) {
         $this->orm = $orm;
         $this->api = $api;
-        $this->log = $log;
     }
 
     /**
@@ -137,7 +134,7 @@ class OrmModelController extends AbstractController {
                 }
             }
         } catch (BadRequestJsonApiException $exception) {
-            $this->log->logException($exception);
+            $this->getLog()->logException($exception);
 
             $error = $this->api->createError(Response::STATUS_CODE_BAD_REQUEST, 'index.input', $exception->getMessage());
             $error->setSourceParameter($exception->getParameter());

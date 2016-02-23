@@ -137,31 +137,41 @@ class OrmJsonApi extends JsonApi {
      * resource adapter is set for the provided type
      */
     public function getResourceAdapter($type) {
-        if (!isset($this->resourceAdapters[$type])) {
-            $modelName = $this->getModelName($type);
-            if (!$modelName) {
-                throw new JsonApiException('Could not get resource adapter: no adapter set for type ' . $type);
-            }
-
-            $model = $this->orm->getModel($modelName);
-
-            $filterStrategies = array();
-
-            $filterStrategyNames = $model->getMeta()->getOption('json.api.filters', 'query,exact,match,expression');
-            $filterStrategyNames = explode(',', $filterStrategyNames);
-            foreach ($filterStrategyNames as $filterStrategyName) {
-                $filterStrategyName = trim($filterStrategyName);
-
-                $filterStrategies[$filterStrategyName] = $this->dependencyInjector->get('ride\\web\\rest\\jsonapi\\filter\\FilterStrategy', $filterStrategyName);
-            }
-
-            $resourceAdapter = new EntryJsonApiResourceAdapter($this->web, $model, $type);
-            $resourceAdapter->setFilterStrategies($filterStrategies);
-
-            $this->setResourceAdapter($type, $resourceAdapter);
+        if (isset($this->resourceAdapters[$type])) {
+            return $this->resourceAdapters[$type];
         }
 
-        return $this->resourceAdapters[$type];
+        $modelName = $this->getModelName($type);
+        if (!$modelName) {
+            throw new JsonApiException('Could not get resource adapter: no adapter set for type ' . $type);
+        }
+
+        $model = $this->orm->getModel($modelName);
+        $meta = $model->getMeta();
+
+        $filterStrategies = array();
+
+        $filterStrategyNames = $meta->getOption('json.api.filters', 'query,exact,match,expression');
+        $filterStrategyNames = explode(',', $filterStrategyNames);
+        foreach ($filterStrategyNames as $filterStrategyName) {
+            $filterStrategyName = trim($filterStrategyName);
+
+            $filterStrategies[$filterStrategyName] = $this->dependencyInjector->get('ride\\web\\rest\\jsonapi\\filter\\FilterStrategy', $filterStrategyName);
+        }
+
+        $resourceAdapterArguments = array(
+            'web' => $this->web,
+            'model' => $model,
+            'type' => $type,
+        );
+
+        $resourceAdapter = $meta->getOption('json.api.adapter', 'entry');
+        $resourceAdapter = $this->dependencyInjector->get('ride\\web\\rest\\jsonapi\\EntryJsonApiResourceAdapter', $resourceAdapter, $resourceAdapterArguments, true);
+        $resourceAdapter->setFilterStrategies($filterStrategies);
+
+        $this->setResourceAdapter($type, $resourceAdapter);
+
+        return $resourceAdapter;
     }
 
 }
