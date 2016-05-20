@@ -36,6 +36,13 @@
             "id": "api.orm.field.detail"
         },
         {
+            "path": "/api/v1/geo-locations/search",
+            "controller": "ride\\web\\rest\\controller\\GeoLocationEntryController",
+            "action": "searchAction",
+            "methods": "GET",
+            "id": "api.orm.geo.search"
+        },
+        {
             "path": "/api/v1/%type%",
             "controller": "ride\\web\\rest\\controller\\OrmEntryController",
             "action": "indexAction",
