@@ -3,6 +3,7 @@
 namespace ride\web\rest\controller;
 
 use ride\library\http\jsonapi\exception\BadRequestJsonApiException;
+use ride\library\http\jsonapi\JsonApiQuery;
 use ride\library\http\Header;
 use ride\library\http\Response;
 use ride\library\orm\model\Model;
@@ -41,7 +42,7 @@ class GeoLocationEntryController extends AbstractJsonApiController {
             // creates a model query based on the document query
             $documentQuery = $this->document->getQuery();
 
-            $geoLocations = $this->search($orm);
+            $geoLocations = $this->search($orm, $documentQuery);
 
             $modelQuery = $geoLocationModel->createQuery();
             $modelQuery->addCondition('{id} IN %1%', array_keys($geoLocations));
@@ -83,13 +84,11 @@ class GeoLocationEntryController extends AbstractJsonApiController {
         }
     }
 
-    private function search(OrmManager $orm) {
-        $term = $this->request->getQueryParameter('term');
+    private function search(OrmManager $orm, JsonApiQuery $documentQuery) {
+        $term = $documentQuery->getFilter('term');
         if ($term) {
             $term = '%' . $term . '%';
         }
-
-        $locale = $this->request->getQueryParameter('locale', $orm->getLocale());
 
         $geoLocationModel = $orm->getGeoLocationModel();
         $geoLocationLocalizedModel = $orm->getGeoLocationLocalizedModel();
@@ -100,7 +99,7 @@ class GeoLocationEntryController extends AbstractJsonApiController {
             $query->setFields('{entry}, {name}');
             $query->setLimit(100);
 
-            $query->addCondition('{locale} = %1%', $locale);
+            $query->addCondition('{locale} = %1%', $orm->getLocale());
             $query->addCondition('{name} LIKE %1%', $term);
 
             $geoLocationLocalizedResult = $query->query('entry');
@@ -119,7 +118,7 @@ class GeoLocationEntryController extends AbstractJsonApiController {
             }
         }
 
-        $type = $this->request->getQueryParameter('type');
+        $type = $documentQuery->getFilter('type');
         if ($type) {
             if (is_array($type)) {
                 $query->addCondition('{type} IN %1%', $type);
@@ -130,9 +129,13 @@ class GeoLocationEntryController extends AbstractJsonApiController {
             }
         }
 
-        $path = $this->request->getQueryParameter('path');
+        $path = $documentQuery->getFilter('path');
         if ($path) {
-            $query->addCondition('{path} LIKE %1%', '%~' . $path . '~%');
+            if (strpos($path, '~') == false) {
+                $path = '~' . $path . '~';
+            }
+
+            $query->addCondition('{path} LIKE %1%', '%' . $path . '%');
         }
 
         $geoLocationResult = $query->query();
