@@ -96,6 +96,24 @@
             ]
         },
         {
+            "class": "ride\\web\\rest\\controller\\GeoLocationEntryController",
+            "calls": [
+                {
+                    "method": "__construct",
+                    "arguments": [
+                        {
+                            "name": "jsonApi",
+                            "type": "dependency",
+                            "properties": {
+                                "interface": "ride\\library\\http\\jsonapi\\JsonApi",
+                                "id": "orm"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\EntryJsonApiResourceAdapter"],
             "class": "ride\\web\\rest\\jsonapi\\EntryJsonApiResourceAdapter",
             "id": "entry"
