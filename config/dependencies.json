@@ -21,6 +21,11 @@
             "id": "query"
         },
         {
+            "interfaces": "ride\\web\\rest\\jsonapi\\filter\\FilterStrategy",
+            "class": "ride\\web\\rest\\jsonapi\\filter\\ElasticFilterStrategy",
+            "id": "elastic"
+        },
+        {
             "interfaces": "ride\\web\\rest\\jsonapi\\processor\\FieldProcessor",
             "class": "ride\\web\\rest\\jsonapi\\processor\\FileFieldProcessor",
             "id": "file",
