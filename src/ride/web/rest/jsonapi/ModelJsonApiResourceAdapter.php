@@ -76,6 +76,9 @@ class ModelJsonApiResourceAdapter implements JsonApiResourceAdapter {
         if ($query->isFieldRequested($this->type, 'modelClassName')) {
             $resource->setAttribute('modelClassName', get_class($model));
         }
+        if ($query->isFieldRequested($this->type, 'options')) {
+            $resource->setAttribute('options', $meta->getOptions());
+        }
 
         if ($query->isFieldRequested($this->type, 'fields') && $query->isIncluded($relationshipPath)) {
             $adapter = $api->getResourceAdapter('model-fields');
