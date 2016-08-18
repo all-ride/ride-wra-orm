@@ -32,6 +32,11 @@ class ElasticFilterStrategy implements FilterStrategy {
         }
 
         $model = $modelQuery->getModel();
+
+        if ($model->getMeta()->isLocalized()) {
+            $query = str_replace(array('%locale%', '%25locale%25'), $modelQuery->getLocale(), $query);
+        }
+
         $parameters = array(
             'query' => $query,
             'limit' => $jsonApiQuery->getLimit(50),
