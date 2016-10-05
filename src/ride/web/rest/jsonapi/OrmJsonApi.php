@@ -40,12 +40,6 @@ class OrmJsonApi extends JsonApi {
     protected $cache;
 
     /**
-     * Maximum level of recursiveness
-     * @var integer
-     */
-    protected $maxLevel;
-
-    /**
      * Mapping between models and resource types
      * @var array
      */
