@@ -37,7 +37,11 @@ class AssetJsonApiResourceAdapter extends EntryJsonApiResourceAdapter {
         $value = $resource->getAttribute('value');
         if ($value && !StringHelper::startsWith($value, array('http://', 'https://'))) {
             $dataUri = $this->web->getHttpFactory()->createDataUriFromFile($value);
-            $resource->setAttribute('value', $dataUri->encode());
+            if ($dataUri === null) {
+                $resource->setAttribute('value', null);
+            } else {
+                $resource->setAttribute('value', $dataUri->encode());
+            }
         }
 
         $query = $document->getQuery()->getParameter('url');
