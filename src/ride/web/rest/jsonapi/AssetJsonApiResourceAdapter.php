@@ -3,6 +3,7 @@
 namespace ride\web\rest\jsonapi;
 
 use ride\library\http\jsonapi\JsonApiDocument;
+use ride\library\image\exception\ImageException;
 use ride\library\StringHelper;
 
 use ride\service\AssetService;
@@ -46,7 +47,13 @@ class AssetJsonApiResourceAdapter extends EntryJsonApiResourceAdapter {
 
         $query = $document->getQuery()->getParameter('url');
         if ($this->assetService && ($query == '1' || $query == 'true')) {
-            $resource->setMeta('url', $this->assetService->getAssetUrl($data));
+            try {
+                $url = $this->assetService->getAssetUrl($data);
+            } catch (ImageException $exception) {
+                $url = null;
+            }
+
+            $resource->setMeta('url', $url);
         }
 
         $query = $document->getQuery()->getParameter('images');
@@ -55,7 +62,12 @@ class AssetJsonApiResourceAdapter extends EntryJsonApiResourceAdapter {
 
             $imageStyles = $this->assetService->getImageStyles();
             foreach ($imageStyles as $imageStyle => $null) {
-                $url = $this->assetService->getAssetUrl($data, $imageStyle, true);
+                try {
+                    $url = $this->assetService->getAssetUrl($data, $imageStyle, true);
+                } catch (ImageException $exception) {
+                    $url = null;
+                }
+
                 if ($url) {
                     $images[$imageStyle] = $url;
                 }
