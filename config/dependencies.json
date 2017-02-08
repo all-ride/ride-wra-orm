@@ -23,7 +23,10 @@
         {
             "interfaces": "ride\\web\\rest\\jsonapi\\filter\\FilterStrategy",
             "class": "ride\\web\\rest\\jsonapi\\filter\\ElasticFilterStrategy",
-            "id": "elastic"
+            "id": "elastic",
+            "calls": [
+                "setLog"
+            ]
         },
         {
             "interfaces": "ride\\web\\rest\\jsonapi\\processor\\FieldProcessor",
