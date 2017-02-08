@@ -1,3 +1,7 @@
+## [1.1.0] - 2017-02-08
+### Added
+- ElasticFilterStrategy: added query variable, catch exceptions
+
 ## [1.0.1] - 2016-11-04
 ### Updated
 - AssetJsonApiResourceAdapter: catch ImageException when image URL's are requested
