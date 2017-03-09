@@ -34,6 +34,9 @@ class AssetJsonApiResourceAdapter extends EntryJsonApiResourceAdapter {
      */
     public function getResource($data, JsonApiDocument $document, $relationshipPath = null) {
         $resource = parent::getResource($data, $document, $relationshipPath);
+        if (!$resource) {
+          return null;
+        }
 
         $value = $resource->getAttribute('value');
         if ($value && !StringHelper::startsWith($value, array('http://', 'https://'))) {
