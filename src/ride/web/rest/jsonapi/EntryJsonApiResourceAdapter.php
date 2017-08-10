@@ -105,7 +105,7 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
 
         $fields = $this->model->getMeta()->getFields();
         foreach ($fields as $fieldName => $field) {
-            if ($fieldName == 'id' || $fieldName == 'type' || !$query->isFieldRequested($this->type, $fieldName)) {
+            if ($fieldName == 'id' || $fieldName == 'type' || !$query->isFieldRequested($this->type, $fieldName) || $field->getOption('json.api.omit')) {
                 continue;
             } elseif ($field instanceof PropertyField) {
                 $value = $this->reflectionHelper->getProperty($data, $fieldName);
