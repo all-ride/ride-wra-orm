@@ -8,6 +8,7 @@ use ride\library\http\jsonapi\JsonApiResourceAdapter;
 use ride\library\http\DataUri;
 use ride\library\orm\definition\field\PropertyField;
 use ride\library\orm\definition\field\HasManyField;
+use ride\library\orm\definition\field\ModelField;
 use ride\library\orm\entry\Entry;
 use ride\library\orm\model\Model;
 
@@ -109,14 +110,8 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
                 continue;
             } elseif ($field instanceof PropertyField) {
                 $value = $this->reflectionHelper->getProperty($data, $fieldName);
-                if (($field->getType() == 'file' || $field->getType() == 'image') && $value) {
-                    $dataUri = $this->web->getHttpFactory()->createDataUriFromFile($value);
-                    if ($dataUri) {
-                        $value = $dataUri->encode();
-                    } else {
-                        $value = null;
-                    }
-                }
+
+                $value = $this->decorateValue($document, $field, $data, $value);
 
                 $resource->setAttribute($fieldName, $value);
 
@@ -157,6 +152,29 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
         }
 
         return $resource;
+    }
+
+    /**
+     * Decorates the provided value for the resulting resource
+     * @param \ride\library\http\jsonapi\JsonApiDocument $document Document
+     * which is requested
+     * @param \ride\library\orm\definition\field\ModelField $field Meta of the
+     * field
+     * @param mixed $data Data to adapt, an ORM entry
+     * @param mixed $value Value to decorate
+     * @return mixed Decorated value
+     */
+    protected function decorateValue(JsonApiDocument $document, ModelField $field, $data, $value) {
+        if (($field->getType() == 'file' || $field->getType() == 'image') && $value) {
+            $dataUri = $this->web->getHttpFactory()->createDataUriFromFile($value);
+            if ($dataUri) {
+                $value = $dataUri->encode();
+            } else {
+                $value = null;
+            }
+        }
+
+        return $value;
     }
 
 }
