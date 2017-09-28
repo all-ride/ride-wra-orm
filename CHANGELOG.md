@@ -1,3 +1,7 @@
+## [1.3.0] - 2017-09-28
+### Updated
+- added decorator function for values in the resource adapter
+
 ## [1.2.0] - 2017-08-10
 ### Added
 - added field option json.api.omit to skip fields for the API
