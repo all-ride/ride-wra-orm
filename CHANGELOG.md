@@ -1,3 +1,7 @@
+## [1.3.1] - 2017-11-29
+### Updated
+- booleans are now returned as booleans and not integer 1 or 0
+
 ## [1.3.0] - 2017-09-28
 ### Updated
 - added decorator function for values in the resource adapter
