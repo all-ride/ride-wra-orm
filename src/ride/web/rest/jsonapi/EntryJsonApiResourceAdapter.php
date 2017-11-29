@@ -165,7 +165,9 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
      * @return mixed Decorated value
      */
     protected function decorateValue(JsonApiDocument $document, ModelField $field, $data, $value) {
-        if (($field->getType() == 'file' || $field->getType() == 'image') && $value) {
+        if ($field->getType() === 'boolean') {
+            $value = (bool) $value;
+        } elseif (($field->getType() == 'file' || $field->getType() == 'image') && $value) {
             $dataUri = $this->web->getHttpFactory()->createDataUriFromFile($value);
             if ($dataUri) {
                 $value = $dataUri->encode();
