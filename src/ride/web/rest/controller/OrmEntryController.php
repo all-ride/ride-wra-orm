@@ -24,7 +24,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * Field processors
      * @var array
      */
-    private $fieldProcessors;
+    protected $fieldProcessors;
 
     /**
      * Hook to perform extra initializing
@@ -399,7 +399,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * @param \ride\library\validation\exception\ValidationException $exception
      * @return null
      */
-    private function handleValidationException(ValidationException $exception, ModelMeta $meta) {
+    protected function handleValidationException(ValidationException $exception, ModelMeta $meta) {
         foreach ($exception->getAllErrors() as $fieldName => $fieldErrors) {
             $field = $meta->getField($fieldName);
             if ($field instanceof PropertyField) {
@@ -424,7 +424,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * @param string $type Name of the resource type
      * @return mixed
      */
-    private function getEntryFromStructure(Model $model, $json, $type, $id = null, $index = null) {
+    protected function getEntryFromStructure(Model $model, $json, $type, $id = null, $index = null) {
         if ($index) {
             $index .= '/';
         }
@@ -538,7 +538,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * @param string $relationship Name of the relationship
      * @return mixed|array
      */
-    private function getRelationshipBody(Model $model, ModelField $field, $relationship) {
+    protected function getRelationshipBody(Model $model, ModelField $field, $relationship) {
         $json = $this->getBody();
         $relationModelName = $field->getRelationModelName();
 
@@ -597,7 +597,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * @return mixed Instance of the entry if found, false otherwise and an
      * error is added to the document
      */
-    private function getEntry(Model $model, $type, $id, $source = null) {
+    protected function getEntry(Model $model, $type, $id, $source = null) {
         $entry = $model->getById($id);
         if ($entry) {
             return $entry;
@@ -615,7 +615,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * @return mixed Model entry of the relationship if found, false otherwise
      * and an error is added to the document
      */
-    private function getRelationship($reference, $source) {
+    protected function getRelationship($reference, $source) {
         // check relationship
         $detail = null;
         if (!is_array($reference)) {
@@ -670,7 +670,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * @param string $type
      * @return \ride\library\orm\definition\field\Field
      */
-    private function getField(Model $model, $relationship, $type) {
+    protected function getField(Model $model, $relationship, $type) {
         $field = $model->getMeta()->getField($relationship);
         if (!$field instanceof RelationField) {
             // invalid relationship
@@ -691,7 +691,7 @@ class OrmEntryController extends AbstractJsonApiController {
      * @return \ride\library\orm\model\Model|boolean Instance of the model if
      * valid type, false otherwise and an error is added to the document
      */
-    private function getModel($type, $source = null) {
+    protected function getModel($type, $source = null) {
         $modelName = $this->api->getModelName($type);
         if ($modelName) {
             return $this->api->getOrmManager()->getModel($modelName);
