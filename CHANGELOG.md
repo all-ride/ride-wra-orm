@@ -1,3 +1,7 @@
+## [1.3.2] - 2018-01-17
+### Updated
+- made private variables and methods protected in OrmEntryController
+
 ## [1.3.1] - 2017-11-29
 ### Updated
 - booleans are now returned as booleans and not integer 1 or 0
