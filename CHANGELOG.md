@@ -1,3 +1,7 @@
+## [1.3.3] - 2018-01-17
+### Updated
+- fixed resource adapter when an entry has null for a hasmany field
+
 ## [1.3.2] - 2018-01-17
 ### Updated
 - made private variables and methods protected in OrmEntryController

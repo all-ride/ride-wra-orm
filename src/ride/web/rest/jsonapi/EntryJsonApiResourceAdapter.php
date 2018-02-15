@@ -133,8 +133,12 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
             $value = $this->reflectionHelper->getProperty($data, $fieldName);
 
             if ($field instanceof HasManyField) {
-                foreach ($value as $id => $entry) {
-                    $value[$id] = $adapter->getResource($entry, $document, $fieldRelationshipPath);
+                if ($value) {
+                    foreach ($value as $id => $entry) {
+                        $value[$id] = $adapter->getResource($entry, $document, $fieldRelationshipPath);
+                    }
+                } else {
+                    $value = array();
                 }
 
                 $relationship->setResourceCollection($value);
