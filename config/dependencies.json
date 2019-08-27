@@ -130,6 +130,11 @@
             ]
         },
         {
+            "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\EntryJsonApiResourceAdapter"],
+            "class": "ride\\web\\rest\\jsonapi\\AssetImageStyleJsonApiResourceAdapter",
+            "id": "asset-image-styles"
+        },
+        {
             "interfaces": ["ride\\library\\http\\jsonapi\\JsonApiResourceAdapter", "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter"],
             "class": "ride\\web\\rest\\jsonapi\\ModelJsonApiResourceAdapter",
             "id": "models"

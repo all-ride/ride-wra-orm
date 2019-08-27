@@ -1,3 +1,7 @@
+## [1.4.0] - 2019-08-27
+### Updated
+- added resource adapter for asset image styles to offer original file name as meta
+
 ## [1.3.3] - 2018-01-17
 ### Updated
 - fixed resource adapter when an entry has null for a hasmany field
