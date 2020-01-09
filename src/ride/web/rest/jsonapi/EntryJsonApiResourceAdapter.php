@@ -171,6 +171,8 @@ class EntryJsonApiResourceAdapter implements JsonApiResourceAdapter {
     protected function decorateValue(JsonApiDocument $document, ModelField $field, $data, $value) {
         if ($field->getType() === 'boolean') {
             $value = (bool) $value;
+        } elseif (($field->getType() === 'datetime' || $field->getType() === 'date' || $field->getType() === 'time') && $value) {
+            $value = (integer) $value;
         } elseif (($field->getType() == 'file' || $field->getType() == 'image') && $value) {
             $dataUri = $this->web->getHttpFactory()->createDataUriFromFile($value);
             if ($dataUri) {

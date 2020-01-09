@@ -1,3 +1,7 @@
+## [1.4.1] - 2020-01-09
+### Updated
+- force date, time and datetime as integer
+
 ## [1.4.0] - 2019-08-27
 ### Updated
 - added resource adapter for asset image styles to offer original file name as meta
