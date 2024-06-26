@@ -1,3 +1,6 @@
+## [1.5.0] - 2024-06-26
+### Updated
+- Updated to be compatible with php 8.3
 ## [1.4.1] - 2020-01-09
 ### Updated
 - force date, time and datetime as integer
