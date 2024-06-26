@@ -20,6 +20,7 @@ class ElasticFilterStrategy implements FilterStrategy {
      * @var \ride\library\log\Log
      */
     private $log;
+    private $search;
 
     /**
      * Constructs a new Elastic filter strategy

@@ -18,6 +18,9 @@ use ride\web\rest\jsonapi\OrmJsonApi;
  * Controller to implement a JSON API out of a ORM model
  */
 class OrmModelController extends AbstractController {
+    protected $orm;
+    protected $api;
+    protected $document;
 
     /**
      * Constructs a new JSON API controller
