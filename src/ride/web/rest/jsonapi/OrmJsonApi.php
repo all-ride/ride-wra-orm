@@ -45,6 +45,8 @@ class OrmJsonApi extends JsonApi {
      */
     protected $modelTypes;
 
+    protected $dependencyInjector;
+
     /**
      * Constructs a new ORM JSON API
      * @param \ride\library\orm\OrmManager $orm

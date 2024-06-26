@@ -15,6 +15,12 @@ use ride\web\WebApplication;
  */
 class ModelJsonApiResourceAdapter implements JsonApiResourceAdapter {
 
+    protected $web;
+
+    protected $orm;
+
+    protected $type;
+
     /**
      * Constructs a new model resource adapter
      * @param \ride\web\WebApplication $web Instance of the web application
